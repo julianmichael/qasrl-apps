@@ -1,0 +1,22 @@
+@package qasrl.apps.demo.pages
+@import qasrl.apps.demo._
+@param config: GenerationConfig
+
+@html(lang := "en")
+  @head
+    @meta(charset := "utf-8")
+    @meta(
+      name := "viewport",
+      content := "width=device-width, initial-scale=1, shrink-to-fit=no")
+    @config.bootstrapLink
+    @tag("title"){QA-SRL | Browse Data}
+  @body
+    @div(id := SharedConstants.mainDemoDivElementId)
+    @input(
+      `type` := "hidden",
+      value := config.apiUrl,
+      id := SharedConstants.apiUrlElementId
+    )
+    @config.bootstrapScripts
+    @script(src := config.demoScriptDepsLocation)
+    @script(src := config.demoScriptLocation)

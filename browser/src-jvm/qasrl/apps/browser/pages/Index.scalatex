@@ -1,0 +1,23 @@
+@package qasrl.apps.browser.pages
+@import qasrl.apps.browser._
+@param config: GenerationConfig
+
+@html(lang := "en")
+  @head
+    @meta(charset := "utf-8")
+    @meta(
+      name := "viewport",
+      content := "width=device-width, initial-scale=1, shrink-to-fit=no")
+    @config.bootstrapLink
+    @tag("title"){QA-SRL | Browse Data}
+  @body
+    @div(id := SharedConstants.mainBrowserDivElementId)
+    @input(
+      `type` := "hidden",
+      value := config.apiUrl,
+      id := SharedConstants.apiUrlElementId
+    )
+    @config.bootstrapScripts
+    @script(src := config.dataMetaIndexLocation)
+    @script(src := config.browserScriptDepsLocation)
+    @script(src := config.browserScriptLocation)

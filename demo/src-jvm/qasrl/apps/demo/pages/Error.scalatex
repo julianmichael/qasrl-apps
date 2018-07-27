@@ -1,0 +1,24 @@
+@package qasrl.apps.demo.pages
+@import qasrl.apps.demo._
+@param config: GenerationConfig
+
+@html(lang := "en")
+  @head
+    @meta(charset := "utf-8")
+    @meta(name := "viewport", content := "width=device-width, initial-scale=1, shrink-to-fit=no")
+    @config.bootstrapLink
+    @tag("title"){Error}
+
+  @body(
+    style := "padding-top: 4.5rem; position: relative;",
+    attr("data-spy") := "scroll",
+    attr("data-target") := "#navbarCollapse",
+    attr("data-offset") := "200")
+
+    @tag("main")(id := "home", role := "main", cls := "container anchor")
+      @div(cls := "jumbotron")
+        @h1{Error}
+        @p(cls := "lead")
+          Something went wrong. Probably a 404.
+
+    @config.bootstrapScripts
