@@ -32,7 +32,7 @@ object Serve extends StreamApp[IO] {
     ).map(NonEmptySet.of(_)).orNone
 
     val command = Command(
-      name = "mill browser.jvm.runMain qasrl.apps.browser.Serve",
+      name = "mill -i browser.jvm.runMain qasrl.apps.browser.Serve",
       header = "Spin up the data server for the QA-SRL Bank browser webapp.") {
       (qasrlBankO, portO, domainRestrictionO).mapN((_, _, _))
     }

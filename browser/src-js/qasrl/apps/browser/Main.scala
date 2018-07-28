@@ -43,9 +43,7 @@ object Main {
       .getAttribute("value")
 
     import qasrl.bank.service.WebClientDocumentService
-    val dataService = new WebClientDocumentService(
-      "http://localhost:8080"
-    )
+    val dataService = new WebClientDocumentService(apiUrl)
 
     object CachedDataService extends DocumentService[CacheCall] {
       import scala.concurrent.ExecutionContext.Implicits.global

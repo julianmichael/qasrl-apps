@@ -12,19 +12,20 @@ val kindProjectorVersion = "0.9.4"
 // cats libs -- maintain version agreement or whatever
 val catsVersion = "1.1.0"
 val catsEffectVersion = "0.10.1"
-val nlpdataVersion = "0.2.0-SNAPSHOT"
-val qasrlVersion = "0.1.0-SNAPSHOT"
-val qasrlBankVersion = "0.1.0-SNAPSHOT"
-val radhocVersion = "0.1.0-SNAPSHOT"
+val nlpdataVersion = "0.2.0"
+val qasrlVersion = "0.1.0"
+val qasrlBankVersion = "0.1.0"
+val radhocVersion = "0.1.0"
 val circeVersion = "0.9.3"
 val http4sVersion = "0.18.14"
 val declineVersion = "0.4.2"
+val monocleVersion = "1.5.1-cats"
 
 val scalatagsVersion = "0.6.7"
 val scalacssVersion = "0.5.3"
-val monocleVersion = "1.4.0"
 
 val ammoniteOpsVersion = "1.1.2"
+val logbackVersion = "1.2.3"
 
 val scalajsDomVersion = "0.9.6"
 val scalajsJqueryVersion = "0.9.3"
@@ -46,10 +47,11 @@ trait CommonModule extends ScalaModule with ScalafmtModule {
     ivy"org.scalamacros:::paradise:$macroParadiseVersion",
     ivy"org.spire-math::kind-projector:$kindProjectorVersion"
   )
-  // TODO remove
-  def repositories = super.repositories ++ Seq(
-    MavenRepository("https://oss.sonatype.org/content/repositories/snapshots")
-  )
+
+  // add back in when necessary
+  // def repositories = super.repositories ++ Seq(
+  //   MavenRepository("https://oss.sonatype.org/content/repositories/snapshots")
+  // )
 }
 
 trait CrossPlatformModule extends ScalaModule {
@@ -124,7 +126,8 @@ object browser extends Module {
       ivy"com.github.japgolly.scalacss::ext-scalatags:$scalacssVersion",
       ivy"com.monovore::decline::$declineVersion",
       ivy"org.http4s::http4s-dsl::$http4sVersion",
-      ivy"org.http4s::http4s-blaze-server::$http4sVersion"
+      ivy"org.http4s::http4s-blaze-server::$http4sVersion",
+      ivy"ch.qos.logback:logback-classic:$logbackVersion"
     )
 
     val qasrlBankLocation = "../qasrl-bank/data/qasrl-v2"
@@ -160,13 +163,13 @@ object browser extends Module {
       )
     }
 
-    def serve(port: Int, domainRestriction: Option[String] = None) = T.command {
+    def serve(port: Int, domainRestriction: String = "") = T.command {
       val runMain = runMainFn()
       runMain(
         "qasrl.apps.browser.Serve", Seq(
           "--qasrl-bank", qasrlBankLocation,
           "--port",       s"$port"
-        ) ++ domainRestriction.toSeq.flatMap(d => Seq("--domain", d))
+        ) ++ Option(domainRestriction).filter(_.nonEmpty).toSeq.flatMap(d => Seq("--domain", d))
       )
     }
   }
@@ -217,7 +220,8 @@ object demo extends Module {
       ivy"com.monovore::decline::$declineVersion",
       ivy"org.http4s::http4s-dsl::$http4sVersion",
       ivy"org.http4s::http4s-blaze-server::$http4sVersion",
-      ivy"org.http4s::http4s-blaze-client::$http4sVersion"
+      ivy"org.http4s::http4s-blaze-client::$http4sVersion",
+      ivy"ch.qos.logback:logback-classic:$logbackVersion"
     )
 
     def generateDev(port: Int, domain: String = "localhost") = T.command {
@@ -249,13 +253,13 @@ object demo extends Module {
       )
     }
 
-    def serve(port: Int, serviceUrl: String, domainRestriction: Option[String] = None) = T.command {
+    def serve(port: Int, serviceUrl: String, domainRestriction: String = "") = T.command {
       val runMain = runMainFn()
       runMain(
         "qasrl.apps.demo.Serve", Seq(
           "--service-url", serviceUrl,
           "--port",        s"$port"
-        ) ++ domainRestriction.toSeq.flatMap(d => Seq("--domain", d))
+        ) ++ Option(domainRestriction).filter(_.nonEmpty).toSeq.flatMap(d => Seq("--domain", d))
       )
     }
   }
