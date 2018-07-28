@@ -130,40 +130,52 @@ object browser extends Module {
       ivy"ch.qos.logback:logback-classic:$logbackVersion"
     )
 
-    val qasrlBankLocation = "../qasrl-bank/data/qasrl-v2"
-
-    def generateDev(port: Int, domain: String = "localhost") = T.command {
-      val browserJSPath = browser.js.fastOpt().path.toString
-      val browserJSDepsPath = browser.js.aggregatedJSDeps().path.toString
+    def generateDev(
+      qasrlBankLocation: Path,
+      siteRoot: Path,
+      port: Int,
+      domain: String = "localhost",
+    ) = T.command {
+      val browserJSPath = browser.js.fastOpt().path
+      val browserJSDepsPath = browser.js.aggregatedJSDeps().path
       val runMain = runMainFn()
       runMain(
         "qasrl.apps.browser.Generate", Seq(
-          "--qasrl-bank",      qasrlBankLocation,
+          "--qasrl-bank",      qasrlBankLocation.toString,
           "--api-url",         s"http://$domain:$port",
-          "--browser-js",      browserJSPath,
-          "--browser-jsdeps",  browserJSDepsPath,
-          "--site-root",       "site/browser/dev",
+          "--browser-js",      browserJSPath.toString,
+          "--browser-jsdeps",  browserJSDepsPath.toString,
+          "--site-root",       siteRoot.toString,
           "--local-links"
-        )
+          )
       )
     }
 
-    def generateProd(port: Int, domain: String) = T.command {
-      val browserJSPath = browser.js.fullOpt().path.toString
-      val browserJSDepsPath = browser.js.aggregatedJSDeps().path.toString
+    def generateProd(
+      qasrlBankLocation: Path,
+      siteRoot: Path,
+      port: Int,
+      domain: String,
+    ) = T.command {
+      val browserJSPath = browser.js.fullOpt().path
+      val browserJSDepsPath = browser.js.aggregatedJSDeps().path
       val runMain = runMainFn()
       runMain(
         "qasrl.apps.browser.Generate", Seq(
-          "--qasrl-bank",      qasrlBankLocation,
+          "--qasrl-bank",      qasrlBankLocation.toString,
           "--api-url",         s"http://$domain:$port",
-          "--browser-js",      browserJSPath,
-          "--browser-jsdeps",  browserJSDepsPath,
-          "--site-root",       "site/browser/prod"
+          "--browser-js",      browserJSPath.toString,
+          "--browser-jsdeps",  browserJSDepsPath.toString,
+          "--site-root",       siteRoot.toString
         )
       )
     }
 
-    def serve(port: Int, domainRestriction: String = "") = T.command {
+    def serve(
+      qasrlBankLocation: String,
+      port: Int,
+      domainRestriction: String = ""
+    ) = T.command {
       val runMain = runMainFn()
       runMain(
         "qasrl.apps.browser.Serve", Seq(
