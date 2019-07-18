@@ -3,21 +3,26 @@ package qasrl.apps.browser
 import qasrl.bank.Data
 
 import cats.data.NonEmptySet
+import cats.effect.ExitCode
 import cats.effect.IO
+import cats.effect.IOApp
 import cats.implicits._
 
-import fs2.{Stream, StreamApp}
-import fs2.StreamApp.ExitCode
+import fs2.Stream
 
 import qasrl.bank.service.DocumentServiceWebServer
 
 import java.nio.file.Path
 
 import com.monovore.decline._
+import com.monovore.decline.effect._
 
-object Serve extends StreamApp[IO] {
-  override def stream(args: List[String], requestShutdown: IO[Unit]): Stream[IO, ExitCode] = {
+object Serve extends CommandIOApp(
+  name = "mill -i browser.jvm.runMain qasrl.apps.browser.Serve",
+  header = "Spin up the data server for the QA-SRL Bank browser webapp.",
+  version = "0.2.0") {
 
+  def main: Opts[IO[ExitCode]] = {
     val qasrlBankO = Opts.option[Path](
       "qasrl-bank", metavar = "path", help = "Path to the QA-SRL Bank 2.0 data, e.g., ../qasrl-bank/data/qasrl-v2."
     )
@@ -31,21 +36,11 @@ object Serve extends StreamApp[IO] {
       help = "Domain to impose CORS restrictions to (otherwise, all domains allowed)."
     ).map(NonEmptySet.of(_)).orNone
 
-    val command = Command(
-      name = "mill -i browser.jvm.runMain qasrl.apps.browser.Serve",
-      header = "Spin up the data server for the QA-SRL Bank browser webapp.") {
-      (qasrlBankO, portO, domainRestrictionO).mapN((_, _, _))
-    }
-
-    val resStreamEither =
-      command.parse(args).flatMap { case (qasrlBankPath, port, domainRestrictionOpt) =>
-        Data.readFromQasrlBank(qasrlBankPath).toEither.left.map(_.toString).map { data =>
-          DocumentServiceWebServer.serve(data.small, port, domainRestrictionOpt)
-        }
+    (qasrlBankO, portO, domainRestrictionO).mapN { case (qasrlBankPath, port, domainRestrictionOpt) =>
+      IO.fromTry(Data.readFromQasrlBank(qasrlBankPath)).map { data =>
+        DocumentServiceWebServer.serve(data.small, port, domainRestrictionOpt)
+          .compile.drain.as(ExitCode.Success)
       }
-
-    resStreamEither.left.map(message =>
-      Stream.eval(IO { System.err.println(message); ExitCode.Error })
-    ).merge
+    }
   }
 }

@@ -1,27 +1,24 @@
 import mill._, mill.scalalib._, mill.scalalib.publish._, mill.scalajslib._
 import mill.scalalib.scalafmt._
-import mill.util.DummyInputStream
+import mill.api.DummyInputStream
 import mill.eval.Result
 import coursier.maven.MavenRepository
 import ammonite.ops._
 
-val thisScalaVersion = "2.12.6"
-val thisScalaJSVersion = "0.6.23"
+val thisScalaVersion = "2.12.8"
+val thisScalaJSVersion = "0.6.27"
 
 val macroParadiseVersion = "2.1.0"
 val kindProjectorVersion = "0.9.4"
 
 // cats libs -- maintain version agreement or whatever
-val catsVersion = "1.1.0"
-val catsEffectVersion = "0.10.1"
-val nlpdataVersion = "0.2.0"
-val qasrlVersion = "0.1.0"
-val qasrlBankVersion = "0.1.0"
-val radhocVersion = "0.1.0"
-val circeVersion = "0.9.3"
-val http4sVersion = "0.18.14"
-val declineVersion = "0.4.2"
-val monocleVersion = "1.5.1-cats"
+val jjmVersion = "0.1.0-SNAPSHOT"
+val qasrlVersion = "0.2.0-SNAPSHOT"
+val qasrlBankVersion = "0.2.0-SNAPSHOT"
+val radhocVersion = "0.2.0-SNAPSHOT"
+
+val http4sVersion = "0.20.6"
+val declineVersion = "0.7.0-M0"
 
 val scalatagsVersion = "0.6.7"
 val scalacssVersion = "0.5.3"
@@ -31,8 +28,6 @@ val logbackVersion = "1.2.3"
 
 val scalajsDomVersion = "0.9.6"
 val scalajsJqueryVersion = "0.9.3"
-val scalajsReactVersion = "1.1.0"
-val scalajsScalaCSSVersion = "0.5.3"
 
 trait CommonModule extends ScalaModule with ScalafmtModule {
 
@@ -74,7 +69,7 @@ trait JvmPlatform extends CrossPlatformModule {
     import mill.modules.Jvm
     import mill.eval.Result
     try Result.Success(
-      Jvm.interactiveSubprocess(
+      Jvm.runSubprocess(
         mainClass,
         runClasspath().map(_.path),
         forkArgs(),
@@ -115,7 +110,8 @@ trait Build extends Module {
     def millSourcePath = buildRoot / "browser"
 
     def ivyDeps = super.ivyDeps() ++ Agg(
-      ivy"org.typelevel::cats-core::$catsVersion",
+      ivy"org.julianmichael::jjm-core::$jjmVersion",
+      ivy"org.julianmichael::jjm-io::$jjmVersion",
       ivy"org.julianmichael::qasrl::$qasrlVersion",
       ivy"org.julianmichael::qasrl-bank::$qasrlBankVersion",
       ivy"org.julianmichael::qasrl-bank-service::$qasrlBankVersion"
@@ -131,6 +127,7 @@ trait Build extends Module {
         ivy"com.github.japgolly.scalacss::core:$scalacssVersion",
         ivy"com.github.japgolly.scalacss::ext-scalatags:$scalacssVersion",
         ivy"com.monovore::decline::$declineVersion",
+        ivy"com.monovore::decline-effect::$declineVersion",
         ivy"org.http4s::http4s-dsl::$http4sVersion",
         ivy"org.http4s::http4s-blaze-server::$http4sVersion",
         ivy"ch.qos.logback:logback-classic:$logbackVersion"
@@ -202,15 +199,10 @@ trait Build extends Module {
       def mainClass = T(Some("qasrl.apps.browser.Main"))
 
       def ivyDeps = super.ivyDeps() ++ Agg(
-        ivy"org.julianmichael::nlpdata::$nlpdataVersion",
         ivy"org.julianmichael::radhoc::$radhocVersion",
-        ivy"com.github.julien-truffaut::monocle-core::$monocleVersion",
-        ivy"com.github.julien-truffaut::monocle-macro::$monocleVersion",
         ivy"org.scala-js::scalajs-dom::$scalajsDomVersion",
-        ivy"com.github.japgolly.scalajs-react::core::$scalajsReactVersion",
-        ivy"com.github.japgolly.scalajs-react::ext-monocle::$scalajsReactVersion",
-        ivy"com.github.japgolly.scalajs-react::ext-cats::$scalajsReactVersion",
-        ivy"com.github.japgolly.scalacss::ext-react::$scalajsScalaCSSVersion"
+        // ivy"com.github.japgolly.scalacss::core::$scalacssVersion",
+        ivy"com.github.japgolly.scalacss::ext-react::$scalacssVersion"
       )
 
       def jsDeps = Agg(
@@ -224,7 +216,8 @@ trait Build extends Module {
     def millSourcePath = buildRoot / "demo"
 
     def ivyDeps = super.ivyDeps() ++ Agg(
-      ivy"org.typelevel::cats-core::$catsVersion",
+      ivy"org.julianmichael::jjm-core::$jjmVersion",
+      ivy"org.julianmichael::jjm-io::$jjmVersion",
       ivy"org.julianmichael::qasrl::$qasrlVersion",
       ivy"org.julianmichael::qasrl-bank::$qasrlBankVersion",
       ivy"org.julianmichael::qasrl-bank-service::$qasrlBankVersion"
@@ -240,6 +233,7 @@ trait Build extends Module {
         ivy"com.github.japgolly.scalacss::core:$scalacssVersion",
         ivy"com.github.japgolly.scalacss::ext-scalatags:$scalacssVersion",
         ivy"com.monovore::decline::$declineVersion",
+        ivy"com.monovore::decline-effect::$declineVersion",
         ivy"org.http4s::http4s-dsl::$http4sVersion",
         ivy"org.http4s::http4s-blaze-server::$http4sVersion",
         ivy"org.http4s::http4s-blaze-client::$http4sVersion",
@@ -295,16 +289,12 @@ trait Build extends Module {
       def mainClass = T(Some("qasrl.apps.demo.Main"))
 
       def ivyDeps = super.ivyDeps() ++ Agg(
+        ivy"org.julianmichael::jjm-core::$jjmVersion",
+        ivy"org.julianmichael::jjm-io::$jjmVersion",
         ivy"org.julianmichael::qasrl::$qasrlVersion",
-        ivy"org.julianmichael::nlpdata::$nlpdataVersion",
         ivy"org.julianmichael::radhoc::$radhocVersion",
-        ivy"com.github.julien-truffaut::monocle-core::$monocleVersion",
-        ivy"com.github.julien-truffaut::monocle-macro::$monocleVersion",
         ivy"org.scala-js::scalajs-dom::$scalajsDomVersion",
-        ivy"com.github.japgolly.scalajs-react::core::$scalajsReactVersion",
-        ivy"com.github.japgolly.scalajs-react::ext-monocle::$scalajsReactVersion",
-        ivy"com.github.japgolly.scalajs-react::ext-cats::$scalajsReactVersion",
-        ivy"com.github.japgolly.scalacss::ext-react::$scalajsScalaCSSVersion"
+        ivy"com.github.japgolly.scalacss::ext-react::$scalacssVersion"
       )
 
       def jsDeps = Agg(

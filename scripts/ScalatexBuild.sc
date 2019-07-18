@@ -25,14 +25,14 @@ trait ScalatexModule extends ScalaModule {
     ls.rec(dest).foreach(rm)
     sourceFilesWithRoots.map { case (root, pathRef) =>
       val path = pathRef.path
-      val objectName = path.name.substring(0, path.name.lastIndexOf('.'))
+      val objectName = path.baseName
       val packageName = path.relativeTo(root).segments.dropRight(1).mkString(".")
 
       val packageSegments = path.relativeTo(root).segments.dropRight(1)
-      val intermediatePath = dest / "standin" / packageSegments / path.name
+      val intermediatePath = dest / "standin" / packageSegments / path.last
       val targetPath = dest / "target" / packageSegments / s"$objectName.scala"
 
-      val allLines = path.getLines("utf-8")
+      val allLines = read.lines(path)
       // TODO remove superfluous blank lines
       //   .foldLeft(List.empty[String]) {
       //   case ((reversedSoFar, prevLine), curLine) =>
@@ -50,9 +50,9 @@ trait ScalatexModule extends ScalaModule {
         .filter(_.startsWith("@param ")).map(_.substring(7)).mkString(", ")
       // replace all chopped lines here with blanks in the intermediate so that
       // errors are reported at the correct line number
-      write(intermediatePath, packagesParamsAndImports.map(_ => "\n").mkString + contentLines.mkString("\n"))
+      write(intermediatePath, packagesParamsAndImports.map(_ => "\n").mkString + contentLines.mkString("\n"), createFolders = true)
 
-      val reproducedCommentedLines = path.getLines("utf-8").map("//" + _).mkString("\n")
+      val reproducedCommentedLines = read.lines(path).map("//" + _).mkString("\n")
       val fileContents =
         s"""$packages
           |import scalatags.Text.all._
@@ -64,7 +64,7 @@ trait ScalatexModule extends ScalaModule {
           |}
           |
           |$reproducedCommentedLines""".stripMargin
-      write(targetPath, fileContents)
+      write(targetPath, fileContents, createFolders = true)
     }
     PathRef(dest / "target")
   }
