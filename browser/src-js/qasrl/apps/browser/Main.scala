@@ -1,21 +1,27 @@
 package qasrl.apps.browser
 
+import scala.concurrent.Future
+
 import org.scalajs.dom
 
-import scalacss.DevDefaults._
+import cats.~>
+import cats.Id
 
-import scala.concurrent.Future
+import jjm.DotMap
+import jjm.LowerCaseString
+import jjm.OrWrapped
+import jjm.io.HttpUtil
 
 import qasrl.bank.DataIndex
 import qasrl.bank.Document
 import qasrl.bank.DocumentId
-import radhoc.{CacheCall, Cached, Remote}
 import qasrl.bank.service.DocumentService
-import qasrl.bank.service.WebClientDocumentService
+import qasrl.bank.service.Search
 
 import qasrl.data.Dataset
 
-import nlpdata.util.LowerCaseStrings._
+import japgolly.scalajs.react.AsyncCallback
+import scalacss.DevDefaults._
 
 object Main {
   def main(args: Array[String]): Unit = {
@@ -27,7 +33,6 @@ object Main {
       import io.circe.syntax._
       import collection.mutable
       import cats.Order.catsKernelOrderingForOrder
-      import qasrl.bank.JsonCodecs._
       decodeJs[DataIndex](
         js.Dynamic.global.dataMetaIndex.asInstanceOf[js.Any]
       ) match {
@@ -42,42 +47,25 @@ object Main {
       .getElementById(SharedConstants.apiUrlElementId)
       .getAttribute("value")
 
-    import qasrl.bank.service.WebClientDocumentService
-    val dataService = new WebClientDocumentService(apiUrl)
+    val initialCache = DotMap.empty[Id, DocumentService.Request]
+      .put(DocumentService.GetDataIndex)(dataIndex)
+      .put(DocumentService.SearchDocuments(Search.Query(None, Set())))(dataIndex.allDocumentIds)
 
-    object CachedDataService extends DocumentService[CacheCall] {
-      import scala.concurrent.ExecutionContext.Implicits.global
-      import scala.collection.mutable
-      import DocumentService._
-      val documentCache = mutable.Map.empty[DocumentId, Document]
-      val documentRequestCache = mutable.Map.empty[DocumentId, Future[Document]]
+    import scala.concurrent.ExecutionContext.Implicits.global
 
-      def getDataIndex = Cached(dataIndex)
+    type DelayedFuture[A] = () => Future[A]
+    val wrapCallback = λ[DelayedFuture ~> AsyncCallback](f =>
+      AsyncCallback.fromFuture(f())
+    )
 
-      def getDocument(id: DocumentId) = {
-        documentCache.get(id).map(Cached(_)).getOrElse {
-          documentRequestCache.get(id).map(Remote(_)).getOrElse {
-            val fut = dataService.getDocument(id)
-            documentRequestCache.put(id, fut)
-            fut.foreach { doc =>
-              documentRequestCache.remove(id)
-              documentCache.put(id, doc)
-            }
-            Remote(fut)
-          }
-        }
-      }
+    val documentService = DocumentService(
+      jjm.Memo.memoizeDotFuture(
+        HttpUtil.makeHttpPostClient[DocumentService.Request](apiUrl),
+        initialCache
+      ).andThenK(OrWrapped.mapK(wrapCallback))
+    )
 
-      def searchDocuments(query: Set[LowerCaseString]) = {
-        if(query.isEmpty) {
-          Cached(dataIndex.allDocumentIds)
-        } else {
-          Remote(dataService.searchDocuments(query))
-        }
-      }
-    }
-
-    Browser.Component(Browser.Props(CachedDataService)).renderIntoDOM(
+    Browser.Component(Browser.Props(documentService)).renderIntoDOM(
       dom.document.getElementById("browser")
     )
   }

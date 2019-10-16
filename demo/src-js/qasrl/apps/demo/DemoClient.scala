@@ -14,6 +14,9 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react._
+import japgolly.scalajs.react.CatsReact._
+import japgolly.scalajs.react.MonocleReact._
+import japgolly.scalajs.react.extra.StateSnapshot
 
 import scalacss.DevDefaults._
 import scalacss.ScalaCssReact._
@@ -22,6 +25,11 @@ import monocle._
 import monocle.function.{all => Optics}
 import monocle.macros._
 import japgolly.scalajs.react.MonocleReact._
+
+import jjm.OrWrapped
+import jjm.ling.ESpan
+import jjm.ling.Text
+import jjm.implicits._
 
 import qasrl.apps.util.Rgba
 
@@ -40,15 +48,11 @@ import qasrl.bank.service.DocumentService
 
 import qasrl.data.AnswerLabel
 import qasrl.data.AnswerJudgment
-import qasrl.data.AnswerSpan
 import qasrl.data.Answer
 import qasrl.data.InvalidQuestion
 import qasrl.data.Sentence
 import qasrl.data.VerbEntry
 import qasrl.data.QuestionLabel
-
-import nlpdata.util.Text
-import nlpdata.util.LowerCaseStrings._
 
 import scala.collection.immutable.SortedSet
 
@@ -58,6 +62,7 @@ import io.circe._
 
 object Demo {
 
+  val StateLocal = new LocalState[State]
   val ParseJsonFetch = new CacheCallContent[String, Json]
   val OptIntLocal = new LocalState[Option[Int]]
 
@@ -67,15 +72,9 @@ object Demo {
     demoUrl: String
   )
 
-  @Lenses case class Span(
-    start: Int,
-    end: Int,
-    text: String
-  )
-
   @Lenses case class QAPair(
     question: String,
-    spans: List[Span]
+    spans: List[ESpan]
   )
 
   @Lenses case class Verb(
@@ -99,10 +98,10 @@ object Demo {
   }
 
 
-  def makeStateValForState[P, S](
-    scope: BackendScope[P, S],
-    state: S
-  ) = StateVal[S](state, s => scope.setState(s))
+  // def makeStateValForState[P, S](
+  //   scope: BackendScope[P, S],
+  //   state: S
+  // ) = StateVal[S](state, s => scope.setState(s))
 
   val transparent = Rgba(255, 255, 255, 0.0)
   val queryKeywordHighlightLayer = Rgba(255, 255, 0, 0.4)
@@ -118,13 +117,13 @@ object Demo {
 
   def checkboxToggle[A](
     label: String,
-    isValueActive: StateVal[Boolean]
+    isValueActive: StateSnapshot[Boolean]
   ) = <.div(
     <.input(S.checkbox)(
       ^.`type` := "checkbox",
       ^.value := label,
-      ^.checked := isValueActive.get,
-      ^.onChange --> isValueActive.modify(!_)
+      ^.checked := isValueActive.value,
+      ^.onChange --> isValueActive.modState(!_)
     ),
     <.span(S.checkboxLabel)(
       label
@@ -142,23 +141,11 @@ object Demo {
 
   import cats.Order.catsKernelOrderingForOrder
 
-  implicit val answerSpanOrder: Order[AnswerSpan] = Order.whenEqual(
-    Order.by[AnswerSpan, Int](_.begin),
-    Order.by[AnswerSpan, Int](_.end)
-  )
-
-  def spanOverlaps(x: AnswerSpan, y: AnswerSpan): Boolean = {
-    x.begin < y.end && y.begin < x.end
-  }
-  def spanContains(s: AnswerSpan, q: Int): Boolean = {
-    q >= s.begin && q < s.end
-  }
-
   sealed trait SpanColoringSpec {
-    def spansWithColors: List[(AnswerSpan, Rgba)]
+    def spansWithColors: List[(ESpan, Rgba)]
   }
-  case class RenderWholeSentence(val spansWithColors: List[(AnswerSpan, Rgba)]) extends SpanColoringSpec
-  case class RenderRelevantPortion(spansWithColorsNel: NonEmptyList[(AnswerSpan, Rgba)]) extends SpanColoringSpec {
+  case class RenderWholeSentence(val spansWithColors: List[(ESpan, Rgba)]) extends SpanColoringSpec
+  case class RenderRelevantPortion(spansWithColorsNel: NonEmptyList[(ESpan, Rgba)]) extends SpanColoringSpec {
     def spansWithColors = spansWithColorsNel.toList
   }
 
@@ -169,26 +156,26 @@ object Demo {
   ) = {
     val containingSpan = coloringSpec match {
       case RenderWholeSentence(_) =>
-        AnswerSpan(0, sentenceTokens.size)
+        ESpan(0, sentenceTokens.size)
       case RenderRelevantPortion(swcNel) =>
         val spans = swcNel.map(_._1)
-        AnswerSpan(spans.map(_.begin).minimum, spans.map(_.end).maximum)
+        ESpan(spans.map(_.begin).minimum, spans.map(_.end).maximum)
     }
     val wordIndexToLayeredColors = (containingSpan.begin until containingSpan.end).map { i =>
       i -> coloringSpec.spansWithColors.collect {
-        case (span, color) if spanContains(span, i) => color
+        case (span, color) if span.contains(i) => color
       }
     }.toMap
     val indexAfterToSpaceLayeredColors = ((containingSpan.begin + 1) to containingSpan.end).map { i =>
       i -> coloringSpec.spansWithColors.collect {
-        case (span, color) if spanContains(span, i - 1) && spanContains(span, i) => color
+        case (span, color) if span.contains(i - 1) && span.contains(i) => color
       }
     }.toMap
-    Text.render[Int, List, List[VdomElement]](
+    Text.renderTokens[Int, List, List[VdomElement]](
       words = sentenceTokens.indices.toList,
       getToken = (index: Int) => sentenceTokens(index),
       spaceFromNextWord = (nextIndex: Int) => {
-        if(!spanContains(containingSpan, nextIndex) || nextIndex == containingSpan.begin) List() else {
+        if(!containingSpan.contains(nextIndex) || nextIndex == containingSpan.begin) List() else {
           val colors = indexAfterToSpaceLayeredColors(nextIndex)
           val colorStr = NonEmptyList[Rgba](transparent, colors)
             .reduce((x: Rgba, y: Rgba) => x add y).toColorStyleString
@@ -202,7 +189,7 @@ object Demo {
         }
       },
       renderWord = (index: Int) => {
-        if(!spanContains(containingSpan, index)) List() else {
+        if(!containingSpan.contains(index)) List() else {
           val colorStr = NonEmptyList(transparent, wordIndexToLayeredColors(index))
             .reduce((x: Rgba, y: Rgba) => x add y).toColorStyleString
           val render: (VdomTag => VdomTag) = wordRenderers.get(index).getOrElse((x: VdomTag) => x)
@@ -220,17 +207,17 @@ object Demo {
 
   def makeAllHighlightedAnswer(
     sentenceTokens: Vector[String],
-    spans: NonEmptyList[Span],
+    spans: NonEmptyList[ESpan],
     color: Rgba
   ): VdomArray = {
-    val orderedSpans = spans.map(s => AnswerSpan(s.start, s.end + 1)).sorted
+    val orderedSpans = spans.map(s => ESpan(s.begin, s.end + 1)).sorted
     case class GroupingState(
-      completeGroups: List[NonEmptyList[AnswerSpan]],
-      currentGroup: NonEmptyList[AnswerSpan]
+      completeGroups: List[NonEmptyList[ESpan]],
+      currentGroup: NonEmptyList[ESpan]
     )
     val groupingState = orderedSpans.tail.foldLeft(GroupingState(Nil, NonEmptyList.of(orderedSpans.head))) {
       case (GroupingState(groups, curGroup), span) =>
-        if(curGroup.exists(s => spanOverlaps(s, span))) {
+        if(curGroup.exists(s => s.overlaps(span))) {
           GroupingState(groups, span :: curGroup)
         } else {
           GroupingState(curGroup :: groups, NonEmptyList.of(span))
@@ -302,16 +289,18 @@ object Demo {
     )
   }
 
-  class Backend(scope: BackendScope[Props, State]) {
+  def getParse(parserUrl: String, sentence: String): OrWrapped[AsyncCallback, Json] = {
+    import scala.concurrent.ExecutionContext.Implicits.global
+    import io.circe.parser.parse
+    OrWrapped.wrapped(
+      AsyncCallback.fromFuture(
+        org.scalajs.dom.ext.Ajax.post(url = parserUrl, data = sentence).map(r => parse(r.responseText).right.get)
+      )
+    )
+  }
 
-    def getParse(parserUrl: String, sentence: String): CacheCall[Json] = {
-      import scala.concurrent.ExecutionContext.Implicits.global
-      import io.circe.parser.parse
-      Remote(org.scalajs.dom.ext.Ajax.post(url = parserUrl, data = sentence).map(r => parse(r.responseText).right.get))
-    }
-
-    def render(props: Props, state: State) = {
-      val stateVal = makeStateValForState(scope, state)
+  def renderDemo(props: Props) = {
+    StateLocal.make(State.initial) { state =>
       <.div(S.mainContainer)(
         <.div(S.fixedRowContainer, S.headyContainer)(
           <.h1(S.mainTitle)("QA-SRL Parser Demo")
@@ -320,23 +309,23 @@ object Demo {
           <.input(S.queryInput)(
             ^.`type` := "text",
             ^.placeholder := "Type a sentence",
-            ^.value := state.curText,
-            ^.onChange ==> ((e: ReactEventFromInput) => scope.modState(State.curText.set(e.target.value))),
+            ^.value := state.value.curText,
+            ^.onChange ==> ((e: ReactEventFromInput) => state.modState(State.curText.set(e.target.value))),
             ^.onKeyDown ==> (
               (e: ReactKeyboardEvent) => {
                 CallbackOption.keyCodeSwitch(e) {
-                  case KeyCode.Enter => scope.modState(State.curQuery.set(Some(state.curText)))
+                  case KeyCode.Enter => state.modState(State.curQuery.set(Some(state.value.curText)))
                 }
               }
             )
           ),
           <.button(S.querySubmitButton)(
-            ^.disabled := state.curText.isEmpty,
-            ^.onClick --> scope.modState(State.curQuery.set(Some(state.curText))),
+            ^.disabled := state.value.curText.isEmpty,
+            ^.onClick --> state.modState(State.curQuery.set(Some(state.value.curText))),
             "Submit"
           )
         ),
-        state.curQuery.whenDefined { curQuery =>
+        state.value.curQuery.whenDefined { curQuery =>
           ParseJsonFetch.make(request = curQuery, sendRequest = query => getParse(props.demoUrl, query)) {
             case ParseJsonFetch.Loading => <.div(S.loadingNotice)("Waiting for parse...")
             case ParseJsonFetch.Loaded(parseJson) =>
@@ -348,10 +337,10 @@ object Demo {
                   OptIntLocal.make(initialValue = None) { highlightedVerbIndex =>
                     val answerSpansWithColors = for {
                       (verb, index) <- sortedVerbs.zipWithIndex
-                      if highlightedVerbIndex.get.forall(_ == verb.index)
+                      if highlightedVerbIndex.value.forall(_ == verb.index)
                       qa <- verb.qa_pairs
                       span <- qa.spans
-                    } yield AnswerSpan(span.start, span.end + 1) -> highlightLayerColors(index % highlightLayerColors.size)
+                    } yield ESpan(span.begin, span.end + 1) -> highlightLayerColors(index % highlightLayerColors.size)
                     val verbColorMap = sortedVerbs
                       .zipWithIndex.map { case (verb, index) =>
                         verb.index -> highlightLayerColors(index % highlightLayerColors.size)
@@ -372,11 +361,11 @@ object Demo {
                                     ^.color := color.copy(a = 1.0).toColorStyleString,
                                     ^.fontWeight := "bold",
                                     ^.onMouseMove --> (
-                                      if(highlightedVerbIndex.get == Some(verbIndex)) {
+                                      if(highlightedVerbIndex.value == Some(verbIndex)) {
                                         Callback.empty
-                                      } else highlightedVerbIndex.set(Some(verbIndex))
+                                      } else highlightedVerbIndex.setState(Some(verbIndex))
                                     ),
-                                    ^.onMouseOut --> highlightedVerbIndex.set(None)
+                                    ^.onMouseOut --> highlightedVerbIndex.setState(None)
                                   )
                                 )
                               )
@@ -387,14 +376,14 @@ object Demo {
                       <.div(S.scrollPane)(
                         sortedVerbs.toVdomArray { verb =>
                           verbEntryDisplay(parse.words, verb, verbColorMap(verb.index))(
-                            S.hoverHighlightedVerbTable.when(highlightedVerbIndex.get.exists(_ == verb.index)),
+                            S.hoverHighlightedVerbTable.when(highlightedVerbIndex.value.exists(_ == verb.index)),
                             ^.key := verb.index,
                             ^.onMouseMove --> (
-                              if(highlightedVerbIndex.get == Some(verb.index)) {
+                              if(highlightedVerbIndex.value == Some(verb.index)) {
                                 Callback.empty
-                              } else highlightedVerbIndex.set(Some(verb.index))
+                              } else highlightedVerbIndex.setState(Some(verb.index))
                             ),
-                            ^.onMouseOut --> highlightedVerbIndex.set(None)
+                            ^.onMouseOut --> highlightedVerbIndex.setState(None)
                           )
                         }
                       )
@@ -407,9 +396,8 @@ object Demo {
     }
   }
 
-  val Component = ScalaComponent.builder[Props]("Browser")
-    .initialState(State.initial)
-    .renderBackend[Backend]
+  val Component = ScalaComponent.builder[Props]("Demo")
+    .render_P(renderDemo)
     .build
 
 }

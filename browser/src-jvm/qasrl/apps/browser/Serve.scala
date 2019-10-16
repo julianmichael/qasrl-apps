@@ -37,7 +37,7 @@ object Serve extends CommandIOApp(
     ).map(NonEmptySet.of(_)).orNone
 
     (qasrlBankO, portO, domainRestrictionO).mapN { case (qasrlBankPath, port, domainRestrictionOpt) =>
-      IO.fromTry(Data.readFromQasrlBank(qasrlBankPath)).map { data =>
+      IO.fromTry(Data.readFromQasrlBank(qasrlBankPath)) >>= { data =>
         DocumentServiceWebServer.serve(data.small, port, domainRestrictionOpt)
           .compile.drain.as(ExitCode.Success)
       }

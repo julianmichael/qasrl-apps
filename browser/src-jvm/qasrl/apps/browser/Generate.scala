@@ -1,48 +1,43 @@
 package qasrl.apps.browser
 
+import cats.effect.ExitCode
 import cats.effect.IO
 import cats.implicits._
 
 import com.monovore.decline._
+import com.monovore.decline.effect._
 
 import java.nio.file.Path
 
 import scalatags.Text.all.Frag
 
-object Generate {
+object Generate extends CommandIOApp(
+  name = "mill browser.jvm.runMain qasrl.apps.browser.Generate",
+  header = "Generate the static site that hosts the QA-SRL browser.",
+  version = "0.2.0") {
 
-  def main(args: Array[String]): Unit = {
-    val command = Command(
-      name = "mill browser.jvm.runMain qasrl.apps.browser.Generate",
-      header = "Generate the static site that hosts the QA-SRL browser."
-    ) {
-      val qasrlBankPath = Opts.option[Path](
-        "qasrl-bank", metavar = "path", help = "Path to the QA-SRL Bank 2.0 data."
-      )
-      val apiUrl = Opts.option[String](
-        "api-url", metavar = "url:port", help = "URL to access the data server at."
-      )
-      val compiledBrowserJS = Opts.option[Path](
-        "browser-js", metavar = "path", help = "Path to compiled JS file for the browser webapp."
-      )
-      val compiledBrowserJSDeps = Opts.option[Path](
-        "browser-jsdeps", metavar = "path", help = "Path to aggregated JS deps file for the browser webapp."
-      )
-      val siteRoot = Opts.option[Path](
-        "site-root", metavar = "path", help = "Root directory in which to place the generated website."
-      )
-      val useLocalLinks = Opts.flag(
-        "local-links", help = "Use links to site-local versions of Bootstrap dependencies"
-      ).orFalse
+  def main: Opts[IO[ExitCode]] = {
+    val qasrlBankPath = Opts.option[Path](
+      "qasrl-bank", metavar = "path", help = "Path to the QA-SRL Bank 2.0 data."
+    )
+    val apiUrl = Opts.option[String](
+      "api-url", metavar = "url:port", help = "URL to access the data server at."
+    )
+    val compiledBrowserJS = Opts.option[Path](
+      "browser-js", metavar = "path", help = "Path to compiled JS file for the browser webapp."
+    )
+    val compiledBrowserJSDeps = Opts.option[Path](
+      "browser-jsdeps", metavar = "path", help = "Path to aggregated JS deps file for the browser webapp."
+    )
+    val siteRoot = Opts.option[Path](
+      "site-root", metavar = "path", help = "Root directory in which to place the generated website."
+    )
+    val useLocalLinks = Opts.flag(
+      "local-links", help = "Use links to site-local versions of Bootstrap dependencies"
+    ).orFalse
 
-      (qasrlBankPath, apiUrl, compiledBrowserJS, compiledBrowserJSDeps, siteRoot, useLocalLinks)
-        .mapN(program)
-    }
-    val result = command.parse(args) match {
-      case Left(help) => IO { System.err.println(help) }
-      case Right(main) => main
-    }
-    result.unsafeRunSync
+    (qasrlBankPath, apiUrl, compiledBrowserJS, compiledBrowserJSDeps, siteRoot, useLocalLinks)
+      .mapN(program)
   }
 
   def program(
@@ -52,7 +47,7 @@ object Generate {
     compiledBrowserJSDeps: Path,
     siteRoot: Path,
     useLocalLinks: Boolean
-  ): IO[Unit] = {
+  ): IO[ExitCode] = {
 
     val browserScriptSiteLocation = "scripts/browser.js"
     val browserDepsSiteLocation = "scripts/browser-deps.js"
@@ -195,6 +190,7 @@ object Generate {
         writeFile(target, s"var $varName = " + jsonString)
         System.out.println(s"Wrote $origin to $target as $varName")
       }
+      ExitCode.Success
     }
   }
 }

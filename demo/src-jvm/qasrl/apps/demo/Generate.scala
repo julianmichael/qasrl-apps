@@ -1,45 +1,39 @@
 package qasrl.apps.demo
 
+import cats.effect.ExitCode
 import cats.effect.IO
 import cats.implicits._
 
 import com.monovore.decline._
+import com.monovore.decline.effect._
 
 import java.nio.file.Path
 
 import scalatags.Text.all.Frag
 
-object Generate {
+object Generate extends CommandIOApp(
+  name = "mill demo.jvm.runMain qasrl.apps.demo.Generate",
+  header = "Generate the static site that hosts the QA-SRL model demo.") {
 
-  def main(args: Array[String]): Unit = {
-    val command = Command(
-      name = "mill demo.jvm.runMain qasrl.apps.demo.Generate",
-      header = "Generate the static site that hosts the QA-SRL demo."
-    ) {
-      val apiUrl = Opts.option[String](
-        "api-url", metavar = "url:port", help = "URL to access the data server at."
-      )
-      val compiledDemoJS = Opts.option[Path](
-        "demo-js", metavar = "path", help = "Path to compiled JS file for the demo webapp."
-      )
-      val compiledDemoJSDeps = Opts.option[Path](
-        "demo-jsdeps", metavar = "path", help = "Path to aggregated JS deps file for the demo webapp."
-      )
-      val siteRoot = Opts.option[Path](
-        "site-root", metavar = "path", help = "Root directory in which to place the generated website."
-      )
-      val useLocalLinks = Opts.flag(
-        "local-links", help = "Use links to site-local versions of Bootstrap dependencies"
-      ).orFalse
+  def main: Opts[IO[ExitCode]] = {
+    val apiUrl = Opts.option[String](
+      "api-url", metavar = "url:port", help = "URL to access the data server at."
+    )
+    val compiledDemoJS = Opts.option[Path](
+      "demo-js", metavar = "path", help = "Path to compiled JS file for the demo webapp."
+    )
+    val compiledDemoJSDeps = Opts.option[Path](
+      "demo-jsdeps", metavar = "path", help = "Path to aggregated JS deps file for the demo webapp."
+    )
+    val siteRoot = Opts.option[Path](
+      "site-root", metavar = "path", help = "Root directory in which to place the generated website."
+    )
+    val useLocalLinks = Opts.flag(
+      "local-links", help = "Use links to site-local versions of Bootstrap dependencies"
+    ).orFalse
 
-      (apiUrl, compiledDemoJS, compiledDemoJSDeps, siteRoot, useLocalLinks)
-        .mapN(program)
-    }
-    val result = command.parse(args) match {
-      case Left(help) => IO { System.err.println(help) }
-      case Right(main) => main
-    }
-    result.unsafeRunSync
+    (apiUrl, compiledDemoJS, compiledDemoJSDeps, siteRoot, useLocalLinks)
+      .mapN(program)
   }
 
   def program(
@@ -48,7 +42,7 @@ object Generate {
     compiledDemoJSDeps: Path,
     siteRoot: Path,
     useLocalLinks: Boolean
-  ): IO[Unit] = {
+  ): IO[ExitCode] = {
 
     val demoScriptSiteLocation = "scripts/demo.js"
     val demoDepsSiteLocation = "scripts/demo-deps.js"
@@ -170,6 +164,7 @@ object Generate {
         copyFile(origin, target)
         System.out.println(s"Copied $origin to $target")
       }
+      ExitCode.Success
     }
   }
 }

@@ -15,10 +15,10 @@ val kindProjectorVersion = "0.9.4"
 val jjmVersion = "0.1.0-SNAPSHOT"
 val qasrlVersion = "0.2.0-SNAPSHOT"
 val qasrlBankVersion = "0.2.0-SNAPSHOT"
-val radhocVersion = "0.2.0-SNAPSHOT"
+val radhocVersion = "0.3.0-SNAPSHOT"
 
-val http4sVersion = "0.20.6"
-val declineVersion = "0.7.0-M0"
+val http4sVersion = "0.20.11"
+val declineVersion = "1.0.0"
 
 val scalatagsVersion = "0.6.7"
 val scalacssVersion = "0.5.3"
@@ -124,12 +124,12 @@ trait Build extends Module {
       def moduleDeps = Seq(core.jvm)
 
       override def ivyDeps = super.ivyDeps() ++ Agg(
-        ivy"com.github.japgolly.scalacss::core:$scalacssVersion",
-        ivy"com.github.japgolly.scalacss::ext-scalatags:$scalacssVersion",
+        // ivy"com.github.japgolly.scalacss::core:$scalacssVersion",
+        // ivy"com.github.japgolly.scalacss::ext-scalatags:$scalacssVersion",
         ivy"com.monovore::decline::$declineVersion",
         ivy"com.monovore::decline-effect::$declineVersion",
-        ivy"org.http4s::http4s-dsl::$http4sVersion",
-        ivy"org.http4s::http4s-blaze-server::$http4sVersion",
+        // ivy"org.http4s::http4s-dsl::$http4sVersion",
+        // ivy"org.http4s::http4s-blaze-server::$http4sVersion",
         ivy"ch.qos.logback:logback-classic:$logbackVersion"
       )
 
@@ -230,12 +230,12 @@ trait Build extends Module {
       def moduleDeps = Seq(core.jvm)
 
       override def ivyDeps = super.ivyDeps() ++ Agg(
-        ivy"com.github.japgolly.scalacss::core:$scalacssVersion",
-        ivy"com.github.japgolly.scalacss::ext-scalatags:$scalacssVersion",
+        // ivy"com.github.japgolly.scalacss::core:$scalacssVersion",
+        // ivy"com.github.japgolly.scalacss::ext-scalatags:$scalacssVersion",
         ivy"com.monovore::decline::$declineVersion",
         ivy"com.monovore::decline-effect::$declineVersion",
-        ivy"org.http4s::http4s-dsl::$http4sVersion",
-        ivy"org.http4s::http4s-blaze-server::$http4sVersion",
+        // ivy"org.http4s::http4s-dsl::$http4sVersion",
+        // ivy"org.http4s::http4s-blaze-server::$http4sVersion",
         ivy"org.http4s::http4s-blaze-client::$http4sVersion",
         ivy"ch.qos.logback:logback-classic:$logbackVersion"
       )
@@ -289,9 +289,6 @@ trait Build extends Module {
       def mainClass = T(Some("qasrl.apps.demo.Main"))
 
       def ivyDeps = super.ivyDeps() ++ Agg(
-        ivy"org.julianmichael::jjm-core::$jjmVersion",
-        ivy"org.julianmichael::jjm-io::$jjmVersion",
-        ivy"org.julianmichael::qasrl::$qasrlVersion",
         ivy"org.julianmichael::radhoc::$radhocVersion",
         ivy"org.scala-js::scalajs-dom::$scalajsDomVersion",
         ivy"com.github.japgolly.scalacss::ext-react::$scalacssVersion"

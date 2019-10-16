@@ -1,20 +1,24 @@
 package qasrl.apps.browser
 
-import cats.Id
-import cats.Order
-import cats.data.NonEmptyList
-import cats.implicits._
-
 import scalajs.js
 import org.scalajs.dom
 import org.scalajs.dom.html
 import org.scalajs.dom.ext.KeyCode
 
 import scala.collection.immutable.SortedSet
+
 import scala.concurrent.ExecutionContext.Implicits.global
+
+import cats.Id
+import cats.Order
+import cats.data.NonEmptyList
+import cats.implicits._
 
 import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react._
+import japgolly.scalajs.react.CatsReact._
+import japgolly.scalajs.react.MonocleReact._
+import japgolly.scalajs.react.extra.StateSnapshot
 
 import scalacss.DevDefaults._
 import scalacss.ScalaCssReact._
@@ -22,7 +26,14 @@ import scalacss.ScalaCssReact._
 import monocle._
 import monocle.function.{all => Optics}
 import monocle.macros._
-import japgolly.scalajs.react.MonocleReact._
+
+import jjm.OrWrapped
+import jjm.LowerCaseString
+import jjm.ling.ESpan
+import jjm.ling.Text
+import jjm.implicits._
+
+import radhoc._
 
 import qasrl.apps.util.Rgba
 
@@ -38,35 +49,31 @@ import qasrl.bank.QuestionSource
 import qasrl.bank.SentenceId
 
 import qasrl.bank.service.DocumentService
+// import qasrl.bank.service.Search
 
 import qasrl.data.AnswerLabel
 import qasrl.data.AnswerJudgment
-import qasrl.data.AnswerSpan
 import qasrl.data.Answer
 import qasrl.data.InvalidQuestion
 import qasrl.data.Sentence
 import qasrl.data.VerbEntry
 import qasrl.data.QuestionLabel
 
-import nlpdata.util.Text
-import nlpdata.util.LowerCaseStrings._
-
-import radhoc._
-
 object Browser {
 
+  val StateLocal = new LocalState[State]
   val IndexFetch = new CacheCallContent[Unit, DataIndex]
   val SearchFetch = new CacheCallContent[Set[LowerCaseString], Set[DocumentId]]
   val DocMetaLocal = new LocalState[DocumentMetadata]
   val DocFetch = new CacheCallContent[DocumentId, Document]
   val SentLocal = new LocalState[Sentence]
-  val DivReference = new ReferenceComponent[html.Div]
+  val DivReference = new Reference[html.Div]
   val BoolLocal = new LocalState[Boolean]
   val OptIntLocal = new LocalState[Option[Int]]
   val QuestionLabelSetLocal = new LocalState[Set[QuestionLabel]]
 
   case class Props(
-    qasrl: DocumentService[CacheCall]
+    qasrl: DocumentService[OrWrapped[AsyncCallback, ?]]
   )
 
   @Lenses case class Search(
@@ -140,10 +147,10 @@ object Browser {
     }
   }
 
-  def makeStateValForState[P, S](
-    scope: BackendScope[P, S],
-    state: S
-  ) = StateVal[S](state, s => scope.setState(s))
+  // def makeStateValForState[P, S](
+  //   scope: BackendScope[P, S],
+  //   state: S
+  // ) = StateVal[S](state, s => scope.setState(s))
 
   val transparent = Rgba(255, 255, 255, 0.0)
   val queryKeywordHighlightLayer = Rgba(255, 255, 0, 0.4)
@@ -159,21 +166,21 @@ object Browser {
 
   def checkboxToggle[A](
     label: String,
-    isValueActive: StateVal[Boolean]
+    isValueActive: StateSnapshot[Boolean]
   ) = <.div(
     <.input(S.checkbox)(
       ^.`type` := "checkbox",
       ^.value := label,
-      ^.checked := isValueActive.get,
-      ^.onChange --> isValueActive.modify(!_)
+      ^.checked := isValueActive.value,
+      ^.onChange --> isValueActive.modState(!_)
     ),
     <.span(S.checkboxLabel)(
       label
     )
   )
 
-  def searchPane(search: StateVal[Search]) = {
-    val query = search.get.text.split("\\s+")
+  def searchPane(search: StateSnapshot[Search]) = {
+    val query = search.value.text.split("\\s+")
       .map(_.trim).toSet
       .filter(_.nonEmpty)
       .map((s: String) => s.lowerCase)
@@ -181,47 +188,47 @@ object Browser {
       <.input(S.searchInput)(
         ^.`type` := "text",
         ^.placeholder := "Search sentences",
-        ^.value := search.get.text,
-        ^.onChange ==> ((e: ReactEventFromInput) => search.zoom(Search.text).set(e.target.value)),
+        ^.value := search.value.text,
+        ^.onChange ==> ((e: ReactEventFromInput) => search.zoomStateL(Search.text).setState(e.target.value)),
         ^.onKeyDown ==> (
           (e: ReactKeyboardEvent) => {
             CallbackOption.keyCodeSwitch(e) {
-              case KeyCode.Enter => search.zoom(Search.query).set(query)
+              case KeyCode.Enter => search.zoomStateL(Search.query).setState(query)
             }
           }
         )
       ),
       <.button(S.searchSubmitButton)(
-        ^.disabled := !search.get.query.isEmpty,
-        ^.onClick --> search.zoom(Search.query).set(query),
+        ^.disabled := !search.value.query.isEmpty,
+        ^.onClick --> search.zoomStateL(Search.query).setState(query),
         "Submit"
       ),
       <.button(S.searchClearButton)(
-        ^.disabled := search.get.query.isEmpty,
-        ^.onClick --> search.zoom(Search.query).set(Set.empty[LowerCaseString]),
+        ^.disabled := search.value.query.isEmpty,
+        ^.onClick --> search.zoomStateL(Search.query).setState(Set.empty[LowerCaseString]),
         "Clear"
       )
       // s"Current query: ${search.get.keywords.fold("")(_.mkString(", "))}"
     )
   }
 
-  def filterPane(filter: StateVal[Filters]) = {
-    val slices = filter.zoom(Filters.slices)
+  def filterPane(filter: StateSnapshot[Filters]) = {
+    val slices = filter.zoomStateL(Filters.slices)
     <.div(S.filterContainer)(
       <.div(S.partitionChooser)(
-        checkboxToggle("Train", filter.zoom(Filters.train)),
-        checkboxToggle("Dev",   filter.zoom(Filters.dev)),
-        checkboxToggle("Test",  filter.zoom(Filters.test))(^.visibility := "hidden")
+        checkboxToggle("Train", filter.zoomStateL(Filters.train)),
+        checkboxToggle("Dev",   filter.zoomStateL(Filters.dev)),
+        checkboxToggle("Test",  filter.zoomStateL(Filters.test))(^.visibility := "hidden")
       ),
       <.div(S.domainChooser)(
-        checkboxToggle("Wikipedia", filter.zoom(Filters.wikipedia)),
-        checkboxToggle("Wikinews",  filter.zoom(Filters.wikinews)),
-        checkboxToggle("TQA",       filter.zoom(Filters.tqa))
+        checkboxToggle("Wikipedia", filter.zoomStateL(Filters.wikipedia)),
+        checkboxToggle("Wikinews",  filter.zoomStateL(Filters.wikinews)),
+        checkboxToggle("TQA",       filter.zoomStateL(Filters.tqa))
       ),
       <.div(S.sliceChooser)(
-        checkboxToggle("Original",  slices.zoom(Slices.original)),
-        checkboxToggle("Expansion", slices.zoom(Slices.expansion)),
-        checkboxToggle("Eval",      slices.zoom(Slices.eval))
+        checkboxToggle("Original",  slices.zoomStateL(Slices.original)),
+        checkboxToggle("Expansion", slices.zoomStateL(Slices.expansion)),
+        checkboxToggle("Eval",      slices.zoomStateL(Slices.eval))
       )
     )
   }
@@ -385,7 +392,7 @@ object Browser {
     )
   }
 
-  def legendPane(validOnly: StateVal[Boolean]) = {
+  def legendPane(validOnly: StateSnapshot[Boolean]) = {
     <.div(S.legendContainer)(
       <.div(S.legendTitle)(
         <.span(S.legendTitleText)("Legend "),
@@ -435,14 +442,14 @@ object Browser {
     )
   }
 
-  def headerPane(state: StateVal[State]) = {
+  def headerPane(state: StateSnapshot[State]) = {
     <.div(S.headerContainer)(
       <.div(S.titleAndSearchContainer)(
         <.h1(S.title)("QA-SRL Bank 2.0"),
-        searchPane(state.zoom(State.search))
+        searchPane(state.zoomStateL(State.search))
       ),
-      filterPane(state.zoom(State.filter)),
-      legendPane(state.zoom(State.filter).zoom(Filters.validOnly))
+      filterPane(state.zoomStateL(State.filter)),
+      legendPane(state.zoomStateL(State.filter.composeLens(Filters.validOnly)))
     )
   }
 
@@ -456,7 +463,7 @@ object Browser {
       allSentences
     } else {
       allSentences.filter { sent =>
-        qasrl.bank.service.Search.getQueryMatchesInSentence(sent, query).nonEmpty
+        qasrl.bank.service.Search.getQueryMatchesInSentence(sent, qasrl.bank.service.Search.Query(None, query)).nonEmpty
       }
     }
     val sliceFilteredSentences = allSentences.filter { sent =>
@@ -479,27 +486,16 @@ object Browser {
 
   import cats.Order.catsKernelOrderingForOrder
 
-  implicit val answerSpanOrder: Order[AnswerSpan] = Order.whenEqual(
-    Order.by[AnswerSpan, Int](_.begin),
-    Order.by[AnswerSpan, Int](_.end)
-  )
   implicit val qasrlDataQuestionLabelOrder: Order[QuestionLabel] = Order.whenEqual(
     Order.by[QuestionLabel, AnnotationRound](getRoundForQuestion _),
     Order.by[QuestionLabel, String](_.questionString)
   )
 
-  def spanOverlaps(x: AnswerSpan, y: AnswerSpan): Boolean = {
-    x.begin < y.end && y.begin < x.end
-  }
-  def spanContains(s: AnswerSpan, q: Int): Boolean = {
-    q >= s.begin && q < s.end
-  }
-
   sealed trait SpanColoringSpec {
-    def spansWithColors: List[(AnswerSpan, Rgba)]
+    def spansWithColors: List[(ESpan, Rgba)]
   }
-  case class RenderWholeSentence(val spansWithColors: List[(AnswerSpan, Rgba)]) extends SpanColoringSpec
-  case class RenderRelevantPortion(spansWithColorsNel: NonEmptyList[(AnswerSpan, Rgba)]) extends SpanColoringSpec {
+  case class RenderWholeSentence(val spansWithColors: List[(ESpan, Rgba)]) extends SpanColoringSpec
+  case class RenderRelevantPortion(spansWithColorsNel: NonEmptyList[(ESpan, Rgba)]) extends SpanColoringSpec {
     def spansWithColors = spansWithColorsNel.toList
   }
 
@@ -510,26 +506,26 @@ object Browser {
   ) = {
     val containingSpan = coloringSpec match {
       case RenderWholeSentence(_) =>
-        AnswerSpan(0, sentenceTokens.size)
+        ESpan(0, sentenceTokens.size)
       case RenderRelevantPortion(swcNel) =>
         val spans = swcNel.map(_._1)
-        AnswerSpan(spans.map(_.begin).minimum, spans.map(_.end).maximum)
+        ESpan(spans.map(_.begin).minimum, spans.map(_.end).maximum)
     }
     val wordIndexToLayeredColors = (containingSpan.begin until containingSpan.end).map { i =>
       i -> coloringSpec.spansWithColors.collect {
-        case (span, color) if spanContains(span, i) => color
+        case (span, color) if span.contains(i) => color
       }
     }.toMap
     val indexAfterToSpaceLayeredColors = ((containingSpan.begin + 1) to containingSpan.end).map { i =>
       i -> coloringSpec.spansWithColors.collect {
-        case (span, color) if spanContains(span, i - 1) && spanContains(span, i) => color
+        case (span, color) if span.contains(i - 1) && span.contains(i) => color
       }
     }.toMap
-    Text.render[Int, List, List[VdomElement]](
+    Text.renderTokens[Int, List, List[VdomElement]](
       words = sentenceTokens.indices.toList,
       getToken = (index: Int) => sentenceTokens(index),
       spaceFromNextWord = (nextIndex: Int) => {
-        if(!spanContains(containingSpan, nextIndex) || nextIndex == containingSpan.begin) List() else {
+        if(!containingSpan.contains(nextIndex) || nextIndex == containingSpan.begin) List() else {
           val colors = indexAfterToSpaceLayeredColors(nextIndex)
           val colorStr = NonEmptyList[Rgba](transparent, colors)
             .reduce((x: Rgba, y: Rgba) => x add y).toColorStyleString
@@ -543,7 +539,7 @@ object Browser {
         }
       },
       renderWord = (index: Int) => {
-        if(!spanContains(containingSpan, index)) List() else {
+        if(!containingSpan.contains(index)) List() else {
           val colorStr = NonEmptyList(transparent, wordIndexToLayeredColors(index))
             .reduce((x: Rgba, y: Rgba) => x add y).toColorStyleString
           val render: (VdomTag => VdomTag) = wordRenderers.get(index).getOrElse((x: VdomTag) => x)
@@ -564,14 +560,14 @@ object Browser {
     answers: NonEmptyList[Answer],
     color: Rgba
   ): VdomArray = {
-    val orderedSpans = answers.flatMap(a => NonEmptyList.fromList(a.spans.toList).get).sorted
+    val orderedSpans = answers.flatMap(_.spans.toNonEmptyList).sorted
     case class GroupingState(
-      completeGroups: List[NonEmptyList[AnswerSpan]],
-      currentGroup: NonEmptyList[AnswerSpan]
+      completeGroups: List[NonEmptyList[ESpan]],
+      currentGroup: NonEmptyList[ESpan]
     )
     val groupingState = orderedSpans.tail.foldLeft(GroupingState(Nil, NonEmptyList.of(orderedSpans.head))) {
       case (GroupingState(groups, curGroup), span) =>
-        if(curGroup.exists(s => spanOverlaps(s, span))) {
+        if(curGroup.exists(_.overlaps(span))) {
           GroupingState(groups, span :: curGroup)
         } else {
           GroupingState(curGroup :: groups, NonEmptyList.of(span))
@@ -701,7 +697,7 @@ object Browser {
                           case InvalidQuestion => <.span(S.invalidValidityText)("Invalid")
                           case Answer(spans) =>   <.span(
                             spans.toList.sorted.map(s =>
-                              Text.renderSpan(sentence.sentenceTokens, (s.begin until s.end).toSet)
+                              Text.renderSpan(sentence.sentenceTokens, s)
                             ).mkString(" / ")
                           )
                         }
@@ -765,17 +761,17 @@ object Browser {
               .filter(l => shouldQuestionBeShown(l, slices, validOnly))
               .sorted
             if(questionLabels.isEmpty) {
-              <.tr(<.td(<.span((S.loadingNotice)("All questions have been filtered out."))))
+              <.tr(<.td(<.span(S.loadingNotice)("All questions have been filtered out.")))
             } else questionLabels
               .flatMap { label =>
-              val thisQToggled = selectedQs.zoom(Optics.at(label))
-              val toggleQ = thisQToggled.modify(!_)
+              val thisQToggled = selectedQs.zoomStateL(Optics.at(label))
+              val toggleQ = thisQToggled.modState(!_)
               List(
                 List(qaLabelRow(curSentence, label, slices, color, toggleQ, false)(^.key := s"short-${label.questionString}")),
                 List(
                   <.tr(S.dummyRow)(^.key :=  s"dummy-${label.questionString}"),
                   qaLabelRow(curSentence, label, slices, color, toggleQ, true)(^.key :=  s"full-${label.questionString}"),
-                ).filter(_ => thisQToggled.get)
+                ).filter(_ => thisQToggled.value)
               ).flatten
             }.toVdomArray(x => x)
           }
@@ -787,7 +783,7 @@ object Browser {
   def docSelectionPane(
     totalNumDocs: Int,
     curDocMetas: SortedSet[DocumentMetadata],
-    curDocMeta: StateVal[DocumentMetadata]
+    curDocMeta: StateSnapshot[DocumentMetadata]
   ) = {
     <.div(S.documentSelectionPaneContainer)(
       <.div(S.documentCountLabel)(
@@ -799,8 +795,8 @@ object Browser {
         curDocMetas.toVdomArray { docMeta =>
           <.div(S.documentSelectionEntry)(
             ^.key := docMeta.id.toString,
-            if(docMeta == curDocMeta.get) S.currentSelectionEntry else S.nonCurrentSelectionEntry,
-            ^.onClick --> curDocMeta.set(docMeta),
+            if(docMeta == curDocMeta.value) S.currentSelectionEntry else S.nonCurrentSelectionEntry,
+            ^.onClick --> curDocMeta.setState(docMeta),
             <.span(S.documentSelectionEntryText)(
               docMeta.title
             )
@@ -814,7 +810,7 @@ object Browser {
     numSentencesInDocument: Int,
     curSentences: SortedSet[Sentence],
     searchQuery: Set[LowerCaseString],
-    curSentence: StateVal[Sentence]
+    curSentence: StateSnapshot[Sentence]
   ) = {
     val sentencesWord = if(numSentencesInDocument == 1) "sentence" else "sentences"
     val sentenceCountLabel = if(curSentences.size == numSentencesInDocument) {
@@ -831,13 +827,13 @@ object Browser {
       ),
       <.div(S.sentenceSelectionPane)(
         curSentences.toVdomArray { sentence =>
-          val spanHighlights = qasrl.bank.service.Search.getQueryMatchesInSentence(sentence, searchQuery).toList.map(index =>
-            AnswerSpan(index, index + 1) -> queryKeywordHighlightLayer
+          val spanHighlights = qasrl.bank.service.Search.getQueryMatchesInSentence(sentence, qasrl.bank.service.Search.Query(None, searchQuery)).toList.map(index =>
+            ESpan(index, index + 1) -> queryKeywordHighlightLayer
           )
           <.div(S.sentenceSelectionEntry)(
             ^.key := sentence.sentenceId,
-            if(sentence == curSentence.get) S.currentSelectionEntry else S.nonCurrentSelectionEntry,
-            ^.onClick --> curSentence.set(sentence),
+            if(sentence == curSentence.value) S.currentSelectionEntry else S.nonCurrentSelectionEntry,
+            ^.onClick --> curSentence.setState(sentence),
             <.span(S.sentenceSelectionEntryText)(
               renderSentenceWithHighlights(sentence.sentenceTokens, RenderWholeSentence(spanHighlights))
             )
@@ -859,7 +855,7 @@ object Browser {
     OptIntLocal.make(initialValue = None) { highlightedVerbIndex =>
       val answerSpansWithColors = for {
         (verb, index) <- sortedVerbs.zipWithIndex
-        if highlightedVerbIndex.get.forall(_ == verb.verbIndex)
+        if highlightedVerbIndex.value.forall(_ == verb.verbIndex)
         question <- verb.questionLabels.values.toList
         if shouldQuestionBeShown(question, slices, validOnly)
         answerLabel <- question.answerJudgments
@@ -893,11 +889,11 @@ object Browser {
                       ^.color := color.copy(a = 1.0).toColorStyleString,
                       ^.fontWeight := "bold",
                       ^.onMouseMove --> (
-                        if(highlightedVerbIndex.get == Some(verbIndex)) {
+                        if(highlightedVerbIndex.value == Some(verbIndex)) {
                           Callback.empty
-                        } else highlightedVerbIndex.set(Some(verbIndex))
+                        } else highlightedVerbIndex.setState(Some(verbIndex))
                       ),
-                      ^.onMouseOut --> highlightedVerbIndex.set(None)
+                      ^.onMouseOut --> highlightedVerbIndex.setState(None)
                     )
                   )
                 )
@@ -908,14 +904,14 @@ object Browser {
         <.div(S.verbEntriesContainer)(
           sentence.verbEntries.values.toList.sortBy(_.verbIndex).toVdomArray { verb =>
             verbEntryDisplay(sentence, verb, slices, validOnly, verbColorMap(verb.verbIndex))(
-              S.hoverHighlightedVerbTable.when(highlightedVerbIndex.get.exists(_ == verb.verbIndex)),
+              S.hoverHighlightedVerbTable.when(highlightedVerbIndex.value.exists(_ == verb.verbIndex)),
               ^.key := verb.verbIndex,
               ^.onMouseMove --> (
-                if(highlightedVerbIndex.get == Some(verb.verbIndex)) {
+                if(highlightedVerbIndex.value == Some(verb.verbIndex)) {
                   Callback.empty
-                } else highlightedVerbIndex.set(Some(verb.verbIndex))
+                } else highlightedVerbIndex.setState(Some(verb.verbIndex))
               ),
-              ^.onMouseOut --> highlightedVerbIndex.set(None)
+              ^.onMouseOut --> highlightedVerbIndex.setState(None)
             )
           }
         )
@@ -925,20 +921,21 @@ object Browser {
 
   val S = BrowserStyles
 
-  class Backend(scope: BackendScope[Props, State]) {
+  // class Backend(scope: BackendScope[Props, State]) {
 
-    def render(props: Props, state: State) = {
-      val stateVal = makeStateValForState(scope, state)
+  def renderBrowser(props: Props) = {
+    StateLocal.make(State.initial(props)) { stateSnapshot =>
+      val state = stateSnapshot.value
       <.div(S.mainContainer)(
         helpModal,
-        headerPane(stateVal),
+        headerPane(stateSnapshot),
         IndexFetch.make(request = (), sendRequest = _ => props.qasrl.getDataIndex) {
           case IndexFetch.Loading =>
             <.div(S.dataContainer)(
               <.span(S.loadingNotice)("Loading metadata...")
             )
           case IndexFetch.Loaded(index) =>
-            SearchFetch.make(request = state.search.query, sendRequest = props.qasrl.searchDocuments _) {
+            SearchFetch.make(request = state.search.query, sendRequest = kws => props.qasrl.searchDocuments(qasrl.bank.service.Search.Query(None, kws))) {
               case SearchFetch.Loading =>
                 <.span(S.loadingNotice)("Waiting for search results...")
               case SearchFetch.Loaded(searchResultIds) =>
@@ -956,7 +953,7 @@ object Browser {
                       curDocMetas,
                       curDocMeta
                     ),
-                    DocFetch.make(request = curDocMeta.get.id, sendRequest = id => props.qasrl.getDocument(id)) {
+                    DocFetch.make(request = curDocMeta.value.id, sendRequest = id => props.qasrl.getDocument(id)) {
                       case DocFetch.Loading =>
                         <.div(S.documentContainer)(
                           <.span(S.loadingNotice)("Loading document...")
@@ -977,9 +974,9 @@ object Browser {
                               curSentence,
                             ),
                             sentenceDisplayPane(
-                              index.getPart(curDocMeta.get.id),
-                              curDocMeta.get,
-                              curSentence.get,
+                              index.getPart(curDocMeta.value.id),
+                              curDocMeta.value,
+                              curSentence.value,
                               state.filter.slices,
                               state.filter.validOnly
                             )
@@ -993,10 +990,11 @@ object Browser {
       )
     }
   }
+  // }
 
   val Component = ScalaComponent.builder[Props]("Browser")
-    .initialStateFromProps((props: Props) => State.initial(props))
-    .renderBackend[Backend]
-    .build
+    .render_P(renderBrowser).build
+    // .initialStateFromProps((props: Props) => State.initial(props))
+    // .renderBackend[Backend]
 
 }
