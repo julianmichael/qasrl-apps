@@ -72,10 +72,21 @@ object Demo {
     demoUrl: String
   )
 
+  case class Span(
+    start: Int,
+    end: Int,
+    text: String
+  ) {
+    def espan = ESpan(start, end)
+  }
+
+
   @Lenses case class QAPair(
     question: String,
-    spans: List[ESpan]
-  )
+    spans: List[Span]
+  ) {
+    def espans = spans.map(_.espan)
+  }
 
   @Lenses case class Verb(
     verb: String,
@@ -251,7 +262,7 @@ object Demo {
       ),
       <.td(S.answerCell)(
         <.span(S.answerText) {
-          NonEmptyList.fromList(qaPair.spans).whenDefined { spansNel =>
+          NonEmptyList.fromList(qaPair.espans).whenDefined { spansNel =>
             makeAllHighlightedAnswer(sentenceTokens, spansNel, color)
           }
         }
@@ -292,9 +303,16 @@ object Demo {
   def getParse(parserUrl: String, sentence: String): OrWrapped[AsyncCallback, Json] = {
     import scala.concurrent.ExecutionContext.Implicits.global
     import io.circe.parser.parse
+    val reqStr = s"""{"sentence": "$sentence"}"""
+    println(parserUrl)
+    println(reqStr)
     OrWrapped.wrapped(
       AsyncCallback.fromFuture(
-        org.scalajs.dom.ext.Ajax.post(url = parserUrl, data = sentence).map(r => parse(r.responseText).right.get)
+        org.scalajs.dom.ext.Ajax.post(
+          url = parserUrl,
+          data = reqStr,
+          headers = Map("Content-Type" -> "application/json")
+        ).map(r => parse(r.responseText).right.get)
       )
     )
   }
@@ -339,7 +357,7 @@ object Demo {
                       (verb, index) <- sortedVerbs.zipWithIndex
                       if highlightedVerbIndex.value.forall(_ == verb.index)
                       qa <- verb.qa_pairs
-                      span <- qa.spans
+                      span <- qa.espans
                     } yield ESpan(span.begin, span.end + 1) -> highlightLayerColors(index % highlightLayerColors.size)
                     val verbColorMap = sortedVerbs
                       .zipWithIndex.map { case (verb, index) =>
