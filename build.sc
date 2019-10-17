@@ -230,12 +230,8 @@ trait Build extends Module {
       def moduleDeps = Seq(core.jvm)
 
       override def ivyDeps = super.ivyDeps() ++ Agg(
-        // ivy"com.github.japgolly.scalacss::core:$scalacssVersion",
-        // ivy"com.github.japgolly.scalacss::ext-scalatags:$scalacssVersion",
         ivy"com.monovore::decline::$declineVersion",
         ivy"com.monovore::decline-effect::$declineVersion",
-        // ivy"org.http4s::http4s-dsl::$http4sVersion",
-        // ivy"org.http4s::http4s-blaze-server::$http4sVersion",
         ivy"org.http4s::http4s-blaze-client::$http4sVersion",
         ivy"ch.qos.logback:logback-classic:$logbackVersion"
       )
@@ -267,20 +263,6 @@ trait Build extends Module {
             "--site-root",    "site/demo/prod"
           )
         )
-      }
-
-      def serve(port: Int, serviceUrl: String, domainRestriction: String = "") = T.command {
-        if (T.ctx().log.inStream == DummyInputStream){
-          Result.Failure("server needs to be run with the -i/--interactive flag")
-        } else {
-          val runMain = runMainFn()
-          runMain(
-            "qasrl.apps.demo.Serve", Seq(
-              "--service-url", serviceUrl,
-              "--port",        s"$port"
-            ) ++ Option(domainRestriction).filter(_.nonEmpty).toSeq.flatMap(d => Seq("--domain", d))
-          )
-        }
       }
     }
     object js extends QASRLDemoModule with JsPlatform with SimpleJSDeps {
