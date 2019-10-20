@@ -12,10 +12,10 @@ val macroParadiseVersion = "2.1.0"
 val kindProjectorVersion = "0.9.4"
 
 // cats libs -- maintain version agreement or whatever
-val jjmVersion = "0.1.0-SNAPSHOT"
-val qasrlVersion = "0.2.0-SNAPSHOT"
-val qasrlBankVersion = "0.2.0-SNAPSHOT"
-val radhocVersion = "0.3.0-SNAPSHOT"
+val jjmVersion = "0.1.0"
+val radhocVersion = "0.3.0"
+val qasrlVersion = "0.2.0"
+val qasrlBankVersion = "0.2.0"
 
 val http4sVersion = "0.20.11"
 val declineVersion = "1.0.0"
