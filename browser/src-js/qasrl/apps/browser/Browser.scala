@@ -788,7 +788,21 @@ object Browser {
     <.div(S.documentSelectionPaneContainer)(
       <.div(S.documentCountLabel)(
         <.span(S.documentCountLabelText)(
-          s"${curDocMetas.size} / $totalNumDocs documents"
+          s"${curDocMetas.size} / $totalNumDocs documents ("
+        ),
+        <.span(S.documentCountLabelRandomText)(
+          <.a(
+            ^.href := "#",
+            ^.onClick --> curDocMeta.setState(
+              curDocMetas.iterator.drop(
+                new scala.util.Random().nextInt(curDocMetas.size)
+              ).next
+            ),
+            "random"
+          )
+        ),
+        <.span(S.documentCountLabelText)(
+          s")"
         )
       ),
       <.div(S.documentSelectionPane)(

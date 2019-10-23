@@ -216,7 +216,6 @@ object BrowserStyles extends StyleSheet.Inline {
     verticalAlign.middle
   )
   val metadataLabelText = style(
-    addClassNames("px-1"),
     whiteSpace.nowrap
   )
 
@@ -241,6 +240,7 @@ object BrowserStyles extends StyleSheet.Inline {
   )
 
   val countLabel = style(
+    addClassNames("px-1"),
     metadataLabel,
     textAlign.right
   )
@@ -276,6 +276,8 @@ object BrowserStyles extends StyleSheet.Inline {
   val documentCountLabelText = style(
     countLabelText
   )
+
+  val documentCountLabelRandomText = style()
 
   val documentSelectionPane = style(
     selectionPane,
