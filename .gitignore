@@ -1,5 +1,8 @@
 *.class
 *.log
 
+.bloop/
+.metals/
+
 out
 site

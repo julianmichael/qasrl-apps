@@ -147,11 +147,6 @@ object Browser {
     }
   }
 
-  // def makeStateValForState[P, S](
-  //   scope: BackendScope[P, S],
-  //   state: S
-  // ) = StateVal[S](state, s => scope.setState(s))
-
   val transparent = Rgba(255, 255, 255, 0.0)
   val queryKeywordHighlightLayer = Rgba(255, 255, 0, 0.4)
 

@@ -5,16 +5,16 @@ import mill.eval.Result
 import coursier.maven.MavenRepository
 import ammonite.ops._
 
-val thisScalaVersion = "2.12.8"
-val thisScalaJSVersion = "0.6.27"
+val thisScalaVersion = "2.12.12"
+val thisScalaJSVersion = "0.6.33"
 
-val macroParadiseVersion = "2.1.0"
+val macroParadiseVersion = "2.1.1"
 val kindProjectorVersion = "0.9.4"
 
 // cats libs -- maintain version agreement or whatever
 val jjmVersion = "0.1.0"
-val radhocVersion = "0.3.0"
 val qasrlVersion = "0.2.0"
+val radhocVersion = "0.3.0"
 val qasrlBankVersion = "0.2.0"
 
 val http4sVersion = "0.20.11"
