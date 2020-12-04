@@ -19,6 +19,7 @@ object BrowserStyles extends StyleSheet.Inline {
   val originalRoundIndicatorColor = grey(200)
   val expansionRoundIndicatorColor = rgba(  64, 192,   0, 1.0)
   val evalRoundIndicatorColor = orange
+  val qaNomRoundIndicatorColor = blue
 
   val metadataLabelBackgroundColor = grey(240)
 
@@ -137,6 +138,8 @@ object BrowserStyles extends StyleSheet.Inline {
   val legendTitleLinkText = style()
 
   val validityLegend = style()
+
+  val qaNomFilterLegend = style()
 
   val highlightLegend = style()
 
@@ -376,6 +379,15 @@ object BrowserStyles extends StyleSheet.Inline {
 
   val verbHeading = style()
 
+  val subVerbContainer = style(
+    addClassNames("px-4"),
+    fontSize(16 pt)
+  )
+
+  val subVerbText = style(
+    fontWeight.bold
+  )
+
   val verbHeadingText = style(
     fontSize(16 pt),
     fontWeight.bold
@@ -424,6 +436,11 @@ object BrowserStyles extends StyleSheet.Inline {
     backgroundColor(evalRoundIndicatorColor)
   )
 
+  val qaNomRoundIndicator = style(
+    roundIndicator,
+    backgroundColor(qaNomRoundIndicatorColor)
+  )
+
   // detour to legend real quick
 
   val roundLegendMark = style(
@@ -445,6 +462,11 @@ object BrowserStyles extends StyleSheet.Inline {
   val evalLegendMark = style(
     roundLegendMark,
     evalRoundIndicator
+  )
+
+  val qaNomLegendMark = style(
+    roundLegendMark,
+    qaNomRoundIndicator
   )
 
   // back to table (question cells etc)

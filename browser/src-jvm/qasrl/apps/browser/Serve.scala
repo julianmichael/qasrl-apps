@@ -1,6 +1,7 @@
 package qasrl.apps.browser
 
 import qasrl.bank.Data
+import qasrl.bank.qanom
 
 import cats.data.NonEmptySet
 import cats.effect.ExitCode
@@ -27,6 +28,10 @@ object Serve extends CommandIOApp(
       "qasrl-bank", metavar = "path", help = "Path to the QA-SRL Bank 2.0 data, e.g., ../qasrl-bank/data/qasrl-v2."
     )
 
+    val qaNomO = Opts.option[Path](
+      "qanom", metavar = "path", help = "Path to the QA-Nom data."
+    )
+
     val portO = Opts.option[Int](
       "port", metavar = "port number", help = "Port to host the HTTP service on."
     )
@@ -36,10 +41,13 @@ object Serve extends CommandIOApp(
       help = "Domain to impose CORS restrictions to (otherwise, all domains allowed)."
     ).map(NonEmptySet.of(_)).orNone
 
-    (qasrlBankO, portO, domainRestrictionO).mapN { case (qasrlBankPath, port, domainRestrictionOpt) =>
-      IO.fromTry(Data.readFromQasrlBank(qasrlBankPath)) >>= { data =>
-        DocumentServiceWebServer.serve(data.small, port, domainRestrictionOpt)
-          .compile.drain.as(ExitCode.Success)
+    (qasrlBankO, qaNomO, portO, domainRestrictionO).mapN { case (qasrlBankPath, qaNomPath, port, domainRestrictionOpt) =>
+      IO.fromTry(Data.readFromQasrlBank(qasrlBankPath)) >>= { qasrlData =>
+        IO.fromTry(Data.loadQANomData(qasrlData.small, qaNomPath)) >>= { allData =>
+          // Data.writeIndex(qaNomPath.resolve("index.json"), allData.index)
+          DocumentServiceWebServer.serve(allData, port, domainRestrictionOpt)
+            .compile.drain.as(ExitCode.Success)
+        }
       }
     }
   }

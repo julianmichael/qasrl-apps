@@ -17,8 +17,8 @@ object Generate extends CommandIOApp(
   version = "0.2.0") {
 
   def main: Opts[IO[ExitCode]] = {
-    val qasrlBankPath = Opts.option[Path](
-      "qasrl-bank", metavar = "path", help = "Path to the QA-SRL Bank 2.0 data."
+    val qasrlIndexPath = Opts.option[Path](
+      "qasrl-index", metavar = "path", help = "Path to the QA-SRL Bank consolidated index."
     )
     val apiUrl = Opts.option[String](
       "api-url", metavar = "url:port", help = "URL to access the data server at."
@@ -36,12 +36,12 @@ object Generate extends CommandIOApp(
       "local-links", help = "Use links to site-local versions of Bootstrap dependencies"
     ).orFalse
 
-    (qasrlBankPath, apiUrl, compiledBrowserJS, compiledBrowserJSDeps, siteRoot, useLocalLinks)
+    (qasrlIndexPath, apiUrl, compiledBrowserJS, compiledBrowserJSDeps, siteRoot, useLocalLinks)
       .mapN(program)
   }
 
   def program(
-    qasrlBankPath: Path,
+    qasrlIndexPath: Path,
     apiUrl: String,
     compiledBrowserJS: Path,
     compiledBrowserJSDeps: Path,
@@ -133,7 +133,7 @@ object Generate extends CommandIOApp(
     )
 
     val jsonToJSFiles: Map[(Path, String), String] = Map(
-      (qasrlBankPath.resolve("index.json.gz"), "dataMetaIndex") -> indexJSLocation
+      (qasrlIndexPath, "dataMetaIndex") -> indexJSLocation
     )
 
     IO {

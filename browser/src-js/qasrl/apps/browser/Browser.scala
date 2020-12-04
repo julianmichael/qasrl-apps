@@ -37,8 +37,9 @@ import radhoc._
 
 import qasrl.apps.util.Rgba
 
-import qasrl.bank.AnswerSource
 import qasrl.bank.AnnotationRound
+import qasrl.bank.AnswerSource
+import qasrl.bank.ConsolidatedSentence
 import qasrl.bank.DataIndex
 import qasrl.bank.DatasetPartition
 import qasrl.bank.Document
@@ -66,7 +67,7 @@ object Browser {
   val SearchFetch = new CacheCallContent[Set[LowerCaseString], Set[DocumentId]]
   val DocMetaLocal = new LocalState[DocumentMetadata]
   val DocFetch = new CacheCallContent[DocumentId, Document]
-  val SentLocal = new LocalState[Sentence]
+  val SentLocal = new LocalState[ConsolidatedSentence]
   val DivReference = new Reference[html.Div]
   val BoolLocal = new LocalState[Boolean]
   val OptIntLocal = new LocalState[Option[Int]]
@@ -87,24 +88,26 @@ object Browser {
   @Lenses case class Slices(
     original: Boolean,
     expansion: Boolean,
-    eval: Boolean
+    eval: Boolean,
+    qaNom: Boolean,
   )
   object Slices {
-    val initial = Slices(true, true, true)
+    val initial = Slices(true, true, true, true)
   }
 
   @Lenses case class Filters(
     partitions: Set[DatasetPartition],
     domains: Set[Domain],
     slices: Slices,
-    validOnly: Boolean
+    validOnly: Boolean,
+    qaNomOnly: Boolean
   )
   object Filters {
     def initial = Filters(
       Set(DatasetPartition.Dev),
-      Set(Domain.TQA),
+      Set(Domain.Wikinews),
       Slices.initial,
-      false
+      false, false
     )
   }
   implicit class FiltersLenses(val fs: Filters.type) extends AnyVal {
@@ -124,13 +127,15 @@ object Browser {
     searchedIds: Set[DocumentId],
     filter: Filters,
     denseIds: Set[DocumentId],
+    qaNomIds: Set[DocumentId]
   ) = {
     filter.partitions.iterator.map(
       part => index.documents(part)
         .filter(doc =>
-        filter.domains.contains(doc.id.domain) &&
+        (!filter.qaNomOnly || qaNomIds.contains(doc.id)) &&
+          filter.domains.contains(doc.id.domain) &&
           searchedIds.contains(doc.id) &&
-          (filter.slices.original || filter.slices.expansion || (filter.slices.eval && denseIds.contains(doc.id)))
+          (filter.slices.original || filter.slices.expansion || (filter.slices.eval && denseIds.contains(doc.id)) || (filter.slices.qaNom && qaNomIds.contains(doc.id)))
       )
     ).foldLeft(SortedSet.empty[DocumentMetadata])(_ union _)
   }
@@ -223,7 +228,8 @@ object Browser {
       <.div(S.sliceChooser)(
         checkboxToggle("Original",  slices.zoomStateL(Slices.original)),
         checkboxToggle("Expansion", slices.zoomStateL(Slices.expansion)),
-        checkboxToggle("Eval",      slices.zoomStateL(Slices.eval))
+        checkboxToggle("Eval",      slices.zoomStateL(Slices.eval)),
+        checkboxToggle("QANom",     slices.zoomStateL(Slices.qaNom)),
       )
     )
   }
@@ -247,7 +253,7 @@ object Browser {
           <.div(S.helpModalHeader)(
             <.h1(S.helpModalTitle)(
               ^.id := helpModalLabelId,
-              "QA-SRL Bank 2.0 Browser"
+              "QA-SRL+QANom Browser"
             ),
             <.button(S.helpModalHeaderCloseButton)(
               ^.`type` := "button", dataDismiss := "modal", ariaLabel := "Close",
@@ -387,7 +393,7 @@ object Browser {
     )
   }
 
-  def legendPane(validOnly: StateSnapshot[Boolean]) = {
+  def legendPane(validOnly: StateSnapshot[Boolean], qaNomOnly: StateSnapshot[Boolean]) = {
     <.div(S.legendContainer)(
       <.div(S.legendTitle)(
         <.span(S.legendTitleText)("Legend "),
@@ -404,7 +410,9 @@ object Browser {
         <.div(S.expansionLegendMark)("m"),
         <.span(" Expansion "),
         <.div(S.evalLegendMark)("m"),
-        <.span(" Eval")
+        <.span(" Eval"),
+        <.div(S.qaNomLegendMark)("m"),
+        <.span(" QANom")
       ),
       <.div(S.validityLegend)(
         checkboxToggle("Valid only ", validOnly)(
@@ -415,6 +423,11 @@ object Browser {
         <.span(", "),
         <.span(S.validValidityText)("≥ 5/6 ➔ valid"),
         <.span(")")
+      ),
+      <.div(S.qaNomFilterLegend)(
+        checkboxToggle("QANom sentences only ", qaNomOnly)(
+          ^.marginLeft := "20px", ^.display := "inline"
+        )
       ),
       <.div(S.highlightLegend)(
         <.span("Answer provided by "),
@@ -440,18 +453,22 @@ object Browser {
   def headerPane(state: StateSnapshot[State]) = {
     <.div(S.headerContainer)(
       <.div(S.titleAndSearchContainer)(
-        <.h1(S.title)("QA-SRL Bank 2.0"),
+        <.h1(S.title)("QA-SRL + QANom"),
         searchPane(state.zoomStateL(State.search))
       ),
       filterPane(state.zoomStateL(State.filter)),
-      legendPane(state.zoomStateL(State.filter.composeLens(Filters.validOnly)))
+      legendPane(
+        state.zoomStateL(State.filter.composeLens(Filters.validOnly)),
+        state.zoomStateL(State.filter.composeLens(Filters.qaNomOnly))
+      )
     )
   }
 
   def getCurSentences(
-    allSentences: SortedSet[Sentence],
+    allSentences: SortedSet[ConsolidatedSentence],
     query: Set[LowerCaseString],
     denseIds: Set[SentenceId],
+    qaNomIds: Set[SentenceId],
     slices: Slices
   ) = {
     val searchFilteredSentences = if(query.isEmpty) {
@@ -462,7 +479,10 @@ object Browser {
       }
     }
     val sliceFilteredSentences = allSentences.filter { sent =>
-      slices.original || slices.expansion || (slices.eval && denseIds.contains(SentenceId.fromString(sent.sentenceId)))
+      val sid = SentenceId.fromString(sent.sentenceId)
+      slices.original || slices.expansion ||
+        (slices.eval && denseIds.contains(sid)) ||
+        (slices.qaNom && qaNomIds.contains(sid))
     }
     searchFilteredSentences.intersect(sliceFilteredSentences)
   }
@@ -470,7 +490,8 @@ object Browser {
   def getRoundForQuestion(label: QuestionLabel) = {
     val qSource = label.questionSources.map(s => QuestionSource.fromString(s): QuestionSource).min
     qSource match {
-      case QuestionSource.Turker(_) => AnnotationRound.Original
+      case QuestionSource.QANomTurker(_) => AnnotationRound.QANom
+      case QuestionSource.QasrlTurker(_) => AnnotationRound.Original
       case QuestionSource.Model(_)  =>
         val hasAnswersInExpansion = label.answerJudgments.map(_.sourceId).exists(s =>
           AnswerSource.fromString(s).round == AnnotationRound.Expansion
@@ -591,6 +612,7 @@ object Browser {
       case Original => slices.original || slices.eval
       case Expansion => slices.expansion || slices.eval
       case Eval => slices.eval
+      case QANom => slices.qaNom
     }
   }
 
@@ -608,7 +630,7 @@ object Browser {
   val colspan = VdomAttr("colspan")
 
   def qaLabelRow(
-    sentence: Sentence,
+    sentence: ConsolidatedSentence,
     label: QuestionLabel,
     slices: Slices,
     color: Rgba,
@@ -620,7 +642,8 @@ object Browser {
     }
     val qSource = label.questionSources.map(s => QuestionSource.fromString(s): QuestionSource).min
     val roundIndicatorStyle = qSource match {
-      case QuestionSource.Turker(_) => S.originalRoundIndicator
+      case QuestionSource.QANomTurker(_) => S.qaNomRoundIndicator
+      case QuestionSource.QasrlTurker(_) => S.originalRoundIndicator
       case QuestionSource.Model(_)  =>
         val hasAnswersInExpansion = label.answerJudgments.map(_.sourceId).exists(s =>
           AnswerSource.fromString(s).round == AnnotationRound.Expansion
@@ -666,8 +689,9 @@ object Browser {
           val questionSourceStr = label.questionSources
             .map(qs => QuestionSource.fromString(qs): QuestionSource)
             .min match {
-            case QuestionSource.Turker(id) => s"turker $id"
-            case QuestionSource.Model(ver) => s"model $ver"
+            case QuestionSource.QANomTurker(id) => s"QANom worker $id"
+            case QuestionSource.QasrlTurker(id) => s"QA-SRL Bank 2.0 worker $id"
+            case QuestionSource.Model(ver) => s"QA-SRL Bank 2.0 model ($ver)"
           }
 
           <.div(
@@ -682,11 +706,16 @@ object Browser {
                       case Original  => S.originalRoundIndicator
                       case Expansion => S.expansionRoundIndicator
                       case Eval      => S.evalRoundIndicator
+                      case QANom     => S.qaNomRoundIndicator
+                    }
+                    val roundString = round match {
+                      case QANom => "QANom"
+                      case _ => "QA-SRL Bank 2.0"
                     }
                     <.tr(
                       ^.key := s"fulldesc-$source-$judgment",
                       <.td(roundIndicatorStyle),
-                      <.td(S.answerSourceIdCell)(s"Turker $id"),
+                      <.td(S.answerSourceIdCell)(s"$roundString worker $id"),
                       <.td(
                         judgment match {
                           case InvalidQuestion => <.span(S.invalidValidityText)("Invalid")
@@ -720,13 +749,14 @@ object Browser {
           case Original  => slices.original
           case Expansion => slices.expansion
           case Eval      => slices.eval
+          case QANom     => slices.qaNom
         }
       )
     }
   }
 
   def verbEntryDisplay(
-    curSentence: Sentence,
+    curSentence: ConsolidatedSentence,
     verb: VerbEntry,
     slices: Slices,
     validOnly: Boolean,
@@ -817,9 +847,9 @@ object Browser {
 
   def sentenceSelectionPane(
     numSentencesInDocument: Int,
-    curSentences: SortedSet[Sentence],
+    curSentences: SortedSet[ConsolidatedSentence],
     searchQuery: Set[LowerCaseString],
-    curSentence: StateSnapshot[Sentence]
+    curSentence: StateSnapshot[ConsolidatedSentence]
   ) = {
     val sentencesWord = if(numSentencesInDocument == 1) "sentence" else "sentences"
     val sentenceCountLabel = if(curSentences.size == numSentencesInDocument) {
@@ -855,12 +885,21 @@ object Browser {
   def sentenceDisplayPane(
     part: DatasetPartition,
     docMeta: DocumentMetadata,
-    sentence: Sentence,
+    sentence: ConsolidatedSentence,
     slices: Slices,
     validOnly: Boolean
   ) = {
     val sentenceId = SentenceId.fromString(sentence.sentenceId)
-    val sortedVerbs = sentence.verbEntries.toList.sortBy(_._1).map(_._2)
+    val sortedVerbs = sentence.verbEntries.values.toVector.sortBy(_.verbIndex)
+    val (sortedVerbsToDisplay, sortedVerbsWithNoQuestions) = sortedVerbs.partition(verb =>
+      verb.questionLabels.values.exists(l =>
+        shouldQuestionBeShown(l, slices, validOnly)
+      )
+    )
+    val nonDisplayedVerbIndices = (
+      sortedVerbsWithNoQuestions.map(_.verbIndex).toSet ++
+        sentence.nonPredicates.keySet
+    )
     OptIntLocal.make(initialValue = None) { highlightedVerbIndex =>
       val answerSpansWithColors = for {
         (verb, index) <- sortedVerbs.zipWithIndex
@@ -874,7 +913,10 @@ object Browser {
       } yield span -> highlightLayerColors(index % highlightLayerColors.size)
       val verbColorMap = sortedVerbs
         .zipWithIndex.map { case (verb, index) =>
-          verb.verbIndex -> highlightLayerColors(index % highlightLayerColors.size)
+          verb.verbIndex -> (
+            if(nonDisplayedVerbIndices.contains(verb.verbIndex)) Rgba.black
+            else highlightLayerColors(index % highlightLayerColors.size)
+          )
       }.toMap
 
       <.div(S.sentenceDisplayPane)(
@@ -888,7 +930,7 @@ object Browser {
           <.span(S.sentenceText)(
             renderSentenceWithHighlights(
               sentence.sentenceTokens,
-              RenderWholeSentence(answerSpansWithColors),
+              RenderWholeSentence(answerSpansWithColors.toList),
               verbColorMap.collect { case (verbIndex, color) =>
                 verbIndex -> (
                   (v: VdomTag) => <.a(
@@ -911,7 +953,7 @@ object Browser {
           )
         ),
         <.div(S.verbEntriesContainer)(
-          sentence.verbEntries.values.toList.sortBy(_.verbIndex).toVdomArray { verb =>
+          sortedVerbsToDisplay.toVdomArray { verb =>
             verbEntryDisplay(sentence, verb, slices, validOnly, verbColorMap(verb.verbIndex))(
               S.hoverHighlightedVerbTable.when(highlightedVerbIndex.value.exists(_ == verb.verbIndex)),
               ^.key := verb.verbIndex,
@@ -922,7 +964,33 @@ object Browser {
               ),
               ^.onMouseOut --> highlightedVerbIndex.setState(None)
             )
-          }
+          },
+          <.div(S.subVerbContainer)(
+            <.span("No questions remaining: "),
+            sortedVerbsWithNoQuestions.map(verb =>
+              Vector(
+                <.span(S.subVerbText)(
+                  ^.color := verbColorMap(verb.verbIndex).copy(a = 1.0).toColorStyleString,
+                  <.a(
+                    ^.name := s"verb-${verb.verbIndex}",
+                    ^.visibility := "hidden"
+                  ),
+                  sentence.sentenceTokens(verb.verbIndex)
+                )
+              )
+            ).intercalate(Vector(<.span(", "))).toVdomArray,
+          ).when(sortedVerbsWithNoQuestions.nonEmpty),
+          <.div(S.subVerbContainer)(
+            <.span("Non-predicates: "),
+            sentence.nonPredicates.toVector.map { case (index, _) =>
+              Vector(
+                <.span(S.subVerbText)(
+                  ^.color := Rgba.black.toColorStyleString, // maybe grey
+                  sentence.sentenceTokens(index)
+                )
+              )
+            }.intercalate(Vector(<.span(", "))).toVdomArray,
+          ).when(sentence.nonPredicates.nonEmpty && slices.qaNom)
         )
       )
     }
@@ -949,7 +1017,8 @@ object Browser {
                 <.span(S.loadingNotice)("Waiting for search results...")
               case SearchFetch.Loaded(searchResultIds) =>
                 val denseDocIds = index.denseIds.map(_.documentId)
-                val curDocMetas = getCurDocuments(index, searchResultIds, state.filter, denseDocIds)
+                val qaNomDocIds = index.qaNomIds.map(_.documentId)
+                val curDocMetas = getCurDocuments(index, searchResultIds, state.filter, denseDocIds, qaNomDocIds)
                 if(curDocMetas.isEmpty) {
                   <.span(S.loadingNotice)("All documents have been filtered out.")
                 } else DocMetaLocal.make(
@@ -968,7 +1037,7 @@ object Browser {
                           <.span(S.loadingNotice)("Loading document...")
                         )
                       case DocFetch.Loaded(doc) =>
-                        val curSentences = getCurSentences(doc.sentences, state.search.query, index.denseIds, state.filter.slices)
+                        val curSentences = getCurSentences(doc.sentences, state.search.query, index.denseIds, index.qaNomIds, state.filter.slices)
                         if(curSentences.isEmpty) {
                           <.div(
                             <.div(<.span(S.loadingNotice)("Current document: " + doc.metadata.title)),

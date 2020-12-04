@@ -15,7 +15,7 @@ val kindProjectorVersion = "0.9.4"
 val jjmVersion = "0.1.0"
 val qasrlVersion = "0.2.0"
 val radhocVersion = "0.3.0"
-val qasrlBankVersion = "0.2.0"
+val qasrlBankVersion = "0.3.0-SNAPSHOT"
 
 val http4sVersion = "0.20.11"
 val declineVersion = "1.0.0"
@@ -134,7 +134,7 @@ trait Build extends Module {
       )
 
       def generateDev(
-        qasrlBankLocation: Path,
+        index: Path,
         port: Int,
         siteRoot: Path = build.millSourcePath / "site" / "dev" / "browser",
         domain: String = "localhost",
@@ -144,7 +144,7 @@ trait Build extends Module {
         val runMain = runMainFn()
         runMain(
           "qasrl.apps.browser.Generate", Seq(
-            "--qasrl-bank",      qasrlBankLocation.toString,
+            "--qasrl-index",     index.toString,
             "--api-url",         s"http://$domain:$port",
             "--browser-js",      browserJSPath.toString,
             "--browser-jsdeps",  browserJSDepsPath.toString,
@@ -174,21 +174,12 @@ trait Build extends Module {
         )
       }
 
-      def serve(
-        qasrlBankLocation: String,
-        port: Int,
-        domainRestriction: String = ""
-      ) = T.command {
+      def serve(args: String*) = T.command {
         if (T.ctx().log.inStream == DummyInputStream){
           Result.Failure("server needs to be run with the -i/--interactive flag")
         } else {
           val runMain = runMainFn()
-          runMain(
-            "qasrl.apps.browser.Serve", Seq(
-              "--qasrl-bank", qasrlBankLocation,
-              "--port",       s"$port"
-            ) ++ Option(domainRestriction).filter(_.nonEmpty).toSeq.flatMap(d => Seq("--domain", d))
-          )
+          runMain("qasrl.apps.browser.Serve", args)
         }
       }
     }

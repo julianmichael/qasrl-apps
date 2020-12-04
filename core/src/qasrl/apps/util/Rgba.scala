@@ -14,3 +14,6 @@ case class Rgba(r: Double, g: Double, b: Double, a: Double) {
   }
   def toColorStyleString = f"rgba(${math.round(r)}%d, ${math.round(g)}%d, ${math.round(b)}%d, $a%.4f)"
 }
+object Rgba {
+  def black = Rgba(0, 0, 0, 1.0)
+}
