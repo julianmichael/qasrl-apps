@@ -253,7 +253,7 @@ object Browser {
           <.div(S.helpModalHeader)(
             <.h1(S.helpModalTitle)(
               ^.id := helpModalLabelId,
-              "QA-SRL+QANom Browser"
+              "QA-SRL + QANom Browser"
             ),
             <.button(S.helpModalHeaderCloseButton)(
               ^.`type` := "button", dataDismiss := "modal", ariaLabel := "Close",
@@ -262,29 +262,48 @@ object Browser {
           ),
           <.div(S.helpModalBody)(
             <.p(
-              "This page presents the complete dataset collected in the paper ",
-              <.a(^.href := "https://arxiv.org/pdf/1805.05377.pdf", "Large-Scale QA-SRL Parsing"),
-              ", by Nicholas FitzGerald, Julian Michael, Luheng He, and Luke Zettlemoyer, ",
-              "presented at ACL 2018. ",
-              "We crowdsourced a large (>64,000 sentence) dataset in several stages. ",
-              "In this data browser you can explore how the data looked at each stage and in each domain. ",
+              "This page presents the consolidated data from two datasets: "
+            ),
+            <.ol(
+              <.li(
+                "The ", <.em("QA-SRL Bank 2.0"), ", presented in ",
+                <.a(^.href := "https://www.aclweb.org/anthology/P18-1191/", "Large-Scale QA-SRL Parsing"),
+                ", by Nicholas FitzGerald, Julian Michael, Luheng He, and Luke Zettlemoyer, ",
+                " at ACL 2018. "
+              ),
+              <.li(
+                <.em("QANom"), ", presented in ",
+                <.a(^.href := "https://www.aclweb.org/anthology/2020.coling-main.274/",
+                    "QANom: Question-Answer driven SRL for Nominalizations"),
+                """, by Ayal Klein, Jonathan Mamou, Valentina Pyatkin, Daniela Stepanov,
+                    Hangfeng He, Dan Roth, Luke Zettlemoyer, and Ido Dagan,
+                    presented at COLING 2020.""",
+              )
+            ),
+            <.p(
+              "Several stages of annotations have been done on over >64,000 sentences in 3 domains. ",
+              "In this data browser, you can explore how the data looks at each stage and in each domain. ",
               "A full description of the interface is given below. "
             ),
             <.p(S.helpWarningAlert)(
               <.b("Warning: "), "This interface will be messed up on mobile or if your window is too narrow. ",
-              "If the interface seems laid out wrong, try zooming out in your browser (e.g., cmd+minus on Chrome on Mac) ",
+              "If the interface seems laid out wrong, try zooming out in your browser (e.g., cmd+hyphen on Chrome on Mac) ",
               "or widening your browser window. "
             ),
             <.h4("About the Data"),
             <.p(
               "QA-SRL reframes the traditional problem of Semantic Role Labeling into one of writing questions and answers. ",
-              "The questions are taken from a restrictive template centered around the verb being targeted as the predicate, ",
+              "The questions are taken from a restrictive template centered around a verb being targeted as the predicate, ",
               "and answers are contiguous spans of tokens from the sentence. ",
-              "In our annotation setup, we had at least 3 annotators answer each question as part of quality control. ",
-              "Annotators could also mark questions as invalid. "
+              "In the QA-SRL Bank 2.0, verbs were chosen from the sentence as predicates. ",
+              "QANom extended this by targeting nominalizations of verbs as well. ",
+              "In the QA-SRL Bank 2.0, at least 3 annotators answer each question as part of quality control. ",
+              "In QANom, a single trained annotator provided each set of question-answer pairs on the training set, ",
+              "whereas two annotators provided them for dev and test, with a third one consolidating their annotations together. ",
+              "Annotators could also mark questions as invalid, or in the case of QANom, mark nouns as not evoking a verbal predicate. "
             ),
             <.p(
-              "We annotated data across 3 domains: "
+              "We have data in 3 domains: "
             ),
             <.ul(
               <.li(
@@ -299,22 +318,26 @@ object Browser {
               )
             ),
             <.p(
-              "The data was also annotated in three stages: "
+              "QANom only covers Wikipedia and Wikinews. ",
+              "Four rounds of annotated data are included; the first are from the QA-SRL Bank 2.0: "
             ),
             <.ul(
               <.li(
-                <.b("Original"), ": workers on Mechanical Turk wrote and answered questions for each verb,"
+                <.b("Original"), ": workers on Mechanical Turk wrote and answered questions for each verb; "
               ),
               <.li(
-                <.b("Expansion"), ": a model trained on the original data produced questions, which turkers answered, and"
+                <.b("Expansion"), ": a model trained on the original round overgenerated questions, which turkers answered; "
               ),
               <.li(
                 <.b("Eval"), ": for a small subset of dev and test, we overgenerated questions from our baseline models ",
-                "and had annotators answer them at twice the original density (from 3 to 6 answer judgments per question)."
+                "and had annotators answer them at twice the original density (from 3 to 6 answer judgments per question); and, "
+              ),
+              <.li(
+                <.b("QANom"), ": annotators wrote questions for nominalized verbs as part of the QANom dataset. "
               )
             ),
             <.p(
-              "Since workers could mark questions as invalid, our convention is to count a question as valid if at least ",
+              "In the QA-SRL Bank 2.0, workers could mark questions as invalid, so our convention is to count a question as valid if at least ",
               "5/6 of its questions are valid — so all 3, in the case of 3 answers, or 5 out of 6 in the case of 6."
             ),
             <.h4("Filters"),
@@ -328,7 +351,7 @@ object Browser {
                 "Toggle display of documents in the each of the three domains."
               ),
               <.li(
-                <.b("Original / Expansion / Eval: "),
+                <.b("Original / Expansion / Eval / QANom: "),
                 "Toggle the display of data based on what round it was written in. ",
                 "The eval filter will include all questions and answers (including from the other two rounds) ",
                 "that were written for the sentences passed through the evaluation stage, whereas ",
@@ -339,22 +362,26 @@ object Browser {
                 <.b("Valid only: "),
                 "Filter out questions that would be counted invalid by our heuristic, based on the set of answers included ",
                 "according to the current filters. ",
-              )
+              ),
+              <.li(
+                <.b("QANom sentences only: "),
+                "Only show documents and sentences which have QANom annotations."
+              ),
             ),
             <.p(
               "The questions introduced in the expansion and eval stages are very often ungrammatical or invalid, ",
               "because they were produced by ", <.i("overgenerating "), "questions from our models. ",
               "Questions were included which were assigned probabilities as low as 0.2. ",
               "See ",
-              <.a(^.href := "https://arxiv.org/pdf/1805.05377.pdf", "the paper "),
-              "for more details. "
+              <.a(^.href := "https://www.aclweb.org/anthology/P18-1191/", "Large-Scale QA-SRL Parsing"),
+              " for more details. "
             ),
             <.h4("Keyword Search"),
             <.p(
               "You may search the dataset for specific words by typing a query in the Keyword Search field and pressing enter. ",
               "The interface will then show only documents and sentences containing that word. ",
               "This does not search through document titles (use cmd+F or ctrl+F for that), ",
-              "is case-insensitive, and matches verbs that are inflected differently. "
+              "is case-insensitive, and matches all inflected forms of a verbal predicate. "
             ),
             <.h4("Data Display"),
             <.p(
@@ -373,9 +400,11 @@ object Browser {
               <.span(S.originalLegendMark)("m"),
               <.span(" Original, "),
               <.span(S.expansionLegendMark)("m"),
-              <.span(" Expansion, and "),
+              <.span(" Expansion, "),
               <.span(S.evalLegendMark)("m"),
-              <.span(" Eval.")
+              <.span(" Eval, and"),
+              <.span(S.qaNomLegendMark)("m"),
+              <.span(" QANom.")
             ),
             <.p(
               "Finally, for full details on the sources of each question and answer, you can click on a question or answer ",
