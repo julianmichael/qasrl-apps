@@ -1,7 +1,6 @@
 package qasrl.apps.browser
 
 import qasrl.bank.Data
-import qasrl.bank.qanom
 
 import cats.data.NonEmptySet
 import cats.effect.ExitCode

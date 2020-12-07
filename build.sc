@@ -46,9 +46,9 @@ trait CommonModule extends ScalaModule with ScalafmtModule {
   )
 
   // add back in when necessary
-  // def repositories = super.repositories ++ Seq(
-  //   MavenRepository("https://oss.sonatype.org/content/repositories/snapshots")
-  // )
+  def repositories = super.repositories ++ Seq(
+    MavenRepository("https://oss.sonatype.org/content/repositories/snapshots")
+  )
 }
 
 trait CrossPlatformModule extends ScalaModule {
@@ -155,7 +155,7 @@ trait Build extends Module {
       }
 
       def generateProd(
-        qasrlBankLocation: Path,
+        index: Path,
         port: Int,
         domain: String,
         siteRoot: Path = build.millSourcePath / "site" / "prod" / "browser",
@@ -165,8 +165,8 @@ trait Build extends Module {
         val runMain = runMainFn()
         runMain(
           "qasrl.apps.browser.Generate", Seq(
-            "--qasrl-bank",      qasrlBankLocation.toString,
-            "--api-url",         s"http://$domain:$port",
+            "--qasrl-index",     index.toString,
+            "--api-url",         s"https://$domain:$port",
             "--browser-js",      browserJSPath.toString,
             "--browser-jsdeps",  browserJSDepsPath.toString,
             "--site-root",       siteRoot.toString
