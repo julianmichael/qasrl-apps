@@ -487,23 +487,25 @@ object Browser {
     searchFilteredSentences.intersect(sliceFilteredSentences)
   }
 
-  def getRoundForQuestion(label: QuestionLabel) = {
-    val qSource = label.questionSources.map(s => QuestionSource.fromString(s): QuestionSource).min
-    qSource match {
-      case QuestionSource.QANomTurker(_) => AnnotationRound.QANom
-      case QuestionSource.QasrlTurker(_) => AnnotationRound.Original
-      case QuestionSource.Model(_)  =>
-        val hasAnswersInExpansion = label.answerJudgments.map(_.sourceId).exists(s =>
-          AnswerSource.fromString(s).round == AnnotationRound.Expansion
-        )
-        if(hasAnswersInExpansion) AnnotationRound.Expansion else AnnotationRound.Eval
-    }
+  def getRoundsForQuestion(label: QuestionLabel): SortedSet[AnnotationRound] = {
+    val qSources = label.questionSources.map(s => QuestionSource.fromString(s): QuestionSource)
+    SortedSet(
+      qSources.map {
+        case QuestionSource.QANomTurker(_) => AnnotationRound.QANom
+        case QuestionSource.QasrlTurker(_) => AnnotationRound.Original
+        case QuestionSource.Model(_)  =>
+          val hasAnswersInExpansion = label.answerJudgments.map(_.sourceId).exists(s =>
+            AnswerSource.fromString(s).round == AnnotationRound.Expansion
+          )
+          if(hasAnswersInExpansion) AnnotationRound.Expansion else AnnotationRound.Eval
+      }.toSeq: _*
+    )
   }
 
   import cats.Order.catsKernelOrderingForOrder
 
   implicit val qasrlDataQuestionLabelOrder: Order[QuestionLabel] = Order.whenEqual(
-    Order.by[QuestionLabel, AnnotationRound](getRoundForQuestion _),
+    Order.by[QuestionLabel, SortedSet[AnnotationRound]](getRoundsForQuestion _),
     Order.by[QuestionLabel, String](_.questionString)
   )
 
@@ -688,11 +690,12 @@ object Browser {
         ) {
           val questionSourceStr = label.questionSources
             .map(qs => QuestionSource.fromString(qs): QuestionSource)
-            .min match {
-            case QuestionSource.QANomTurker(id) => s"QANom worker $id"
-            case QuestionSource.QasrlTurker(id) => s"QA-SRL Bank 2.0 worker $id"
-            case QuestionSource.Model(ver) => s"QA-SRL Bank 2.0 model ($ver)"
-          }
+            .map {
+              case QuestionSource.QANomTurker(id) => s"QANom worker $id"
+              case QuestionSource.QasrlTurker(id) => s"QA-SRL Bank 2.0 worker $id"
+              case QuestionSource.Model(ver) => s"QA-SRL Bank 2.0 model ($ver)"
+            }
+            .mkString(", ")
 
           <.div(
             <.span(S.questionSourceText)(s"Written by $questionSourceStr"),
@@ -745,7 +748,7 @@ object Browser {
       import AnnotationRound._
       val hasEvalAnswers = label.answerJudgments.map(aj => AnswerSource.fromString(aj.sourceId).round).contains(Eval)
       (hasEvalAnswers && slices.eval) || (
-        getRoundForQuestion(label) match {
+        getRoundsForQuestion(label).exists {
           case Original  => slices.original
           case Expansion => slices.expansion
           case Eval      => slices.eval
